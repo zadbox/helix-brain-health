@@ -1,0 +1,8 @@
+.next/
+node_modules/
+.env.local
+.env*.local
+*.tsbuildinfo
+
+.DS_Store
+skills/ui-ux-pro-max/

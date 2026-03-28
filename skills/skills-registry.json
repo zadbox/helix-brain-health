@@ -1,0 +1,115 @@
+{
+  "version": "1.0",
+  "project": "Brain Health",
+  "skills": [
+    {
+      "id": "skill-generaliste",
+      "name": "Médecine Générale",
+      "priority": "V1",
+      "status": "active",
+      "path": "./skill-generaliste",
+      "triggers": ["motif_general", "diagnostic_differentiel", "pathologies_courantes"],
+      "description": "Diagnostic différentiel toutes pathologies courantes, PQRST, RED FLAGS"
+    },
+    {
+      "id": "skill-urgences",
+      "name": "Urgences & Tri",
+      "priority": "V1",
+      "status": "active",
+      "path": "./skill-urgences",
+      "triggers": ["constantes_anormales", "signes_gravite", "urgence_vitale"],
+      "description": "Détection signes de gravité, scores ABCDE, Glasgow, qSOFA"
+    },
+    {
+      "id": "skill-cardiologie",
+      "name": "Cardiologie",
+      "priority": "V1",
+      "status": "active",
+      "path": "./skill-cardiologie",
+      "triggers": ["douleur_thoracique", "palpitations", "dyspnee", "antecedent_coronarien"],
+      "description": "SCA, IC, arythmies, scores GRACE, TIMI, Wells, CHA₂DS₂-VASc"
+    },
+    {
+      "id": "skill-pneumologie",
+      "name": "Pneumologie",
+      "priority": "V1",
+      "status": "active",
+      "path": "./skill-pneumologie",
+      "triggers": ["dyspnee", "toux", "spo2_bas", "bpco", "asthme"],
+      "description": "IRA, pneumonie, BPCO, asthme, score PSI/PORT, CURB-65"
+    },
+    {
+      "id": "skill-infectiologie",
+      "name": "Infectiologie",
+      "priority": "V1",
+      "status": "active",
+      "path": "./skill-infectiologie",
+      "triggers": ["fievre", "infection", "sepsis"],
+      "description": "Fièvre, sepsis, qSOFA, antibiothérapie guidée Maroc"
+    },
+    {
+      "id": "skill-ordonnance",
+      "name": "Prescription",
+      "priority": "V1",
+      "status": "active",
+      "path": "./skill-ordonnance",
+      "triggers": ["demande_ordonnance", "prescription", "traitement"],
+      "description": "Génération ordonnances, posologies, interactions médicamenteuses"
+    },
+    {
+      "id": "skill-medicaments-ma",
+      "name": "Pharmacologie Maroc",
+      "priority": "V1",
+      "status": "active",
+      "path": "./skill-medicaments-ma",
+      "triggers": ["medicament", "prix", "generique", "amo", "interaction"],
+      "description": "Base médicaments marocains, prix, génériques, remboursement AMO"
+    },
+    {
+      "id": "skill-compte-rendu",
+      "name": "Documentation",
+      "priority": "V1",
+      "status": "active",
+      "path": "./skill-compte-rendu",
+      "triggers": ["compte_rendu", "cr", "resume", "fin_consultation"],
+      "description": "Rédaction CR médical structuré, narratif clinique naturel"
+    },
+    {
+      "id": "ui-ux-pro-max",
+      "name": "UI/UX Pro Max (Design Intelligence)",
+      "priority": "V1",
+      "status": "active",
+      "path": "./ui-ux-pro-max",
+      "triggers": ["design", "couleur", "typographie", "composant", "style"],
+      "description": "Design intelligence: 67 UI styles, 161 palettes, 57 typographies, UX guidelines",
+      "usage": "python3 skills/ui-ux-pro-max/src/ui-ux-pro-max/scripts/search.py '<query>' --domain <style|color|typography|ux|chart> -n 3"
+    },
+    {
+      "id": "skill-gyneco",
+      "name": "Gynécologie",
+      "priority": "V2",
+      "status": "planned",
+      "path": "./skill-gyneco",
+      "triggers": ["sexe_femme", "gyneco", "grossesse", "contraception"],
+      "description": "GEU, grossesse, cycle, contraception, dépistage"
+    },
+    {
+      "id": "skill-pediatrie",
+      "name": "Pédiatrie",
+      "priority": "V2",
+      "status": "planned",
+      "path": "./skill-pediatrie",
+      "triggers": ["enfant", "nourrisson", "poids_faible", "vaccin"],
+      "description": "Courbes croissance, posologies pédiatriques, vaccins"
+    },
+    {
+      "id": "skill-diabeto",
+      "name": "Diabétologie",
+      "priority": "V2",
+      "status": "planned",
+      "path": "./skill-diabeto",
+      "triggers": ["diabete", "hba1c", "insuline", "glycemie"],
+      "description": "HbA1c, schémas insuline, thyroïde, objectifs glycémiques"
+    }
+  ]
+}
