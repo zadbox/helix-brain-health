@@ -381,12 +381,20 @@ export function FichePatientForm() {
                   value={fiche.hmaDouleur?.type}
                   onChange={(v) => updateFiche({ hmaDouleur: { ...fiche.hmaDouleur, type: v } })}
                   options={[
+                    { value: "mecanique", label: "Mécanique — aggravée à l'effort, soulagée au repos" },
+                    { value: "inflammatoire", label: "Inflammatoire — nocturne, dérouillage matinal" },
+                    { value: "neuropathique", label: "Neuropathique — brûlure, décharges, allodynie" },
+                    { value: "vasculaire", label: "Vasculaire — pulsatile, battements" },
+                    { value: "viscérale", label: "Viscérale — profonde, diffuse, mal localisée" },
+                    { value: "projetée", label: "Projetée — irradie à distance de la source" },
                     { value: "constrictive", label: "Constrictive / en étau" },
-                    { value: "brulure", label: "Brûlure" },
+                    { value: "brulure", label: "Brûlure superficielle" },
                     { value: "pique", label: "Piqûre / coup de poignard" },
                     { value: "torsion", label: "Torsion / crampe" },
                     { value: "pesanteur", label: "Pesanteur / lourdeur" },
-                    { value: "pulsatile", label: "Pulsatile / battements" },
+                    { value: "colique", label: "Colique — paroxystique, ondulante" },
+                    { value: "psychogene", label: "Psychogène / somatoforme" },
+                    { value: "mixte", label: "Mixte — plusieurs composantes" },
                     { value: "autre", label: "Autre" },
                   ]}
                   placeholder="Type de douleur"
