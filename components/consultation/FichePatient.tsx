@@ -5,7 +5,7 @@ import { FichePatient, MotifPrincipal } from "@/types";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 
 // ─── Section Wrapper ──────────────────────────────────────────────────────────
 
@@ -271,10 +271,157 @@ const ANTECEDENTS_FAMILIAUX = [
   "Maladies auto-immunes", "Maladies psychiatriques",
 ];
 
-const APPAREILS_EXAMEN = [
-  "Cardiovasculaire", "Pulmonaire", "Abdominal",
-  "Neurologique", "ORL", "Cutané", "Locomoteur", "Urogénital",
+const APPAREILS_EXAMEN: { key: string; label: string; placeholder: string; color: string }[] = [
+  { key: "Cardiovasculaire", label: "Cardio-vasculaire", color: "bg-red-100 text-red-700 border-red-200",
+    placeholder: "Bruits du cœur (B1 B2), souffle, pouls périphériques, TA, signes d'insuffisance cardiaque..." },
+  { key: "Pulmonaire", label: "Pulmonaire / Respiratoire", color: "bg-sky-100 text-sky-700 border-sky-200",
+    placeholder: "Murmure vésiculaire, râles (crépitants, sibilants, ronchus), douleur pleurale, saturation..." },
+  { key: "Abdominal", label: "Abdominal / Digestif", color: "bg-amber-100 text-amber-700 border-amber-200",
+    placeholder: "Inspection, palpation (défense, contracture, hépatomégalie, splénomégalie), transit, bruits hydro-aériques..." },
+  { key: "Neurologique", label: "Neurologique", color: "bg-purple-100 text-purple-700 border-purple-200",
+    placeholder: "Conscience (GCS), paires crâniennes, déficit moteur/sensitif, réflexes ostéo-tendineux, signe de Babinski, coordination..." },
+  { key: "ORL", label: "ORL / Tête & Cou", color: "bg-teal-100 text-teal-700 border-teal-200",
+    placeholder: "Oropharynx, amygdales, tympans, adénopathies, thyroïde, sinus..." },
+  { key: "Cutané", label: "Cutané / Téguments", color: "bg-orange-100 text-orange-700 border-orange-200",
+    placeholder: "Lésions cutanées (type, siège, étendue), muqueuses, phanères, ictère, cyanose, œdèmes..." },
+  { key: "Locomoteur", label: "Locomoteur / Ostéo-articulaire", color: "bg-lime-100 text-lime-700 border-lime-200",
+    placeholder: "Amplitudes articulaires, douleurs à la mobilisation, tuméfaction, chaleur, rougeur, force musculaire..." },
+  { key: "Urogénital", label: "Uro-génital / Rénal", color: "bg-indigo-100 text-indigo-700 border-indigo-200",
+    placeholder: "Fosses lombaires, miction, globe vésical, organes génitaux externes, toucher rectal/vaginal si indiqué..." },
+  { key: "Général", label: "État général", color: "bg-gray-100 text-gray-700 border-gray-200",
+    placeholder: "Altération de l'état général, poids, température, aspect général, niveau de conscience, coopération..." },
 ];
+
+// ─── Auto-resize Textarea ─────────────────────────────────────────────────────
+
+function AutoTextarea({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      rows={2}
+      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-gray-300 resize-none overflow-hidden leading-relaxed"
+    />
+  );
+}
+
+// ─── Examen Clinique Panel ─────────────────────────────────────────────────────
+
+function ExamenCliniquePanel({
+  examenClinique,
+  onChange,
+}: {
+  examenClinique: Record<string, string> | undefined;
+  onChange: (v: Record<string, string>) => void;
+}) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [showAll, setShowAll] = useState(false);
+
+  const getValue = (key: string) => examenClinique?.[key] ?? "";
+  const setValue = (key: string, val: string) =>
+    onChange({ ...examenClinique, [key]: val });
+
+  const filledCount = APPAREILS_EXAMEN.filter((a) => getValue(a.key).trim()).length;
+
+  return (
+    <div className="space-y-2">
+      {/* Header actions */}
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs text-gray-400">
+          {filledCount}/{APPAREILS_EXAMEN.length} appareils renseignés
+        </span>
+        <button
+          onClick={() => setShowAll((s) => !s)}
+          className="text-xs text-blue-500 hover:text-blue-700 transition-colors"
+        >
+          {showAll ? "Replier tout" : "Déplier tout"}
+        </button>
+      </div>
+
+      {APPAREILS_EXAMEN.map((appareil) => {
+        const val = getValue(appareil.key);
+        const isFilled = val.trim().length > 0;
+        const isOpen = showAll || expanded[appareil.key] || isFilled;
+
+        return (
+          <div
+            key={appareil.key}
+            className={cn(
+              "rounded-xl border transition-all overflow-hidden",
+              isFilled ? "border-gray-200 bg-white shadow-sm" : "border-gray-100 bg-gray-50/50"
+            )}
+          >
+            {/* Row header */}
+            <button
+              type="button"
+              className="w-full flex items-center justify-between px-3 py-2 text-left"
+              onClick={() =>
+                setExpanded((prev) => ({ ...prev, [appareil.key]: !prev[appareil.key] }))
+              }
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full border shrink-0", appareil.color)}>
+                  {appareil.label}
+                </span>
+                {isFilled && !isOpen && (
+                  <span className="text-xs text-gray-500 truncate">{val}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                {isFilled && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
+                )}
+                {isOpen
+                  ? <ChevronUp size={13} className="text-gray-400" />
+                  : <ChevronDown size={13} className="text-gray-400" />}
+              </div>
+            </button>
+
+            {/* Textarea — shown when open */}
+            <AnimatePresence initial={false}>
+              {isOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="overflow-hidden"
+                >
+                  <div className="px-3 pb-3">
+                    <AutoTextarea
+                      value={val}
+                      onChange={(v) => setValue(appareil.key, v)}
+                      placeholder={appareil.placeholder}
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -799,26 +946,13 @@ export function FichePatientForm() {
       <Section
         id="examen"
         title="10. Examen Clinique"
-       
         color="blue"
-        completed={!!(fiche.examenClinique && Object.keys(fiche.examenClinique).length > 0)}
+        completed={!!(fiche.examenClinique && Object.values(fiche.examenClinique).some(v => v?.trim()))}
       >
-        <div className="space-y-2">
-          {APPAREILS_EXAMEN.map((appareil) => (
-            <div key={appareil} className="flex items-start gap-2">
-              <div className="text-xs font-medium text-gray-500 w-32 shrink-0 pt-2">{appareil}</div>
-              <Input
-                value={fiche.examenClinique?.[appareil]}
-                onChange={(v) =>
-                  updateFiche({
-                    examenClinique: { ...fiche.examenClinique, [appareil]: v },
-                  })
-                }
-                placeholder={`Findings ${appareil.toLowerCase()}...`}
-              />
-            </div>
-          ))}
-        </div>
+        <ExamenCliniquePanel
+          examenClinique={fiche.examenClinique}
+          onChange={(v) => updateFiche({ examenClinique: v })}
+        />
       </Section>
 
       {/* 11 — Notes libres */}
