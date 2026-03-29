@@ -6,6 +6,7 @@ import {
   AlerteClinic,
   Hypothese,
   Suggestion,
+  ReferenceScientifique,
 } from "@/types";
 import { checkConstantes, generateId } from "@/lib/utils";
 
@@ -22,6 +23,7 @@ interface ConsultationStore {
   // Agent actions
   setHypotheses: (hypotheses: Hypothese[]) => void;
   setSuggestions: (suggestions: Suggestion[]) => void;
+  setReferences: (references: ReferenceScientifique[]) => void;
   setIsAnalyzing: (v: boolean) => void;
   setIsTyping: (v: boolean) => void;
   addMessage: (msg: ChatMessage) => void;
@@ -42,6 +44,7 @@ const initialAgent: AgentState = {
   alertes: [],
   hypotheses: [],
   suggestions: [],
+  references: [],
   messages: [],
   isAnalyzing: false,
   isTyping: false,
@@ -92,6 +95,9 @@ export const useConsultationStore = create<ConsultationStore>((set, get) => ({
 
   setSuggestions: (suggestions) =>
     set((state) => ({ agent: { ...state.agent, suggestions } })),
+
+  setReferences: (references) =>
+    set((state) => ({ agent: { ...state.agent, references } })),
 
   setIsAnalyzing: (isAnalyzing) =>
     set((state) => ({ agent: { ...state.agent, isAnalyzing } })),

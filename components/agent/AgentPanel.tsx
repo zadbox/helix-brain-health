@@ -197,6 +197,65 @@ function SuggestionsPanel() {
   );
 }
 
+// ─── References Panel ─────────────────────────────────────────────────────────
+
+function ReferencesPanel() {
+  const { agent } = useConsultationStore();
+  const [open, setOpen] = useState(false);
+
+  if (!agent.references?.length) return null;
+
+  return (
+    <div className="px-4">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between bg-blue-900/20 border border-blue-500/20 rounded-xl px-3 py-2.5 text-left"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-blue-400">PubMed</span>
+          <span className="text-sm font-medium text-blue-300">Références scientifiques</span>
+          <span className="text-xs bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-full">{agent.references.length}</span>
+        </div>
+        {open ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-slate-800/60 rounded-b-xl border border-t-0 border-blue-500/20 px-3 py-3 space-y-3">
+              {agent.references.map((ref, i) => (
+                <div key={ref.pmid || i} className="border-l-2 border-blue-500/40 pl-3">
+                  <div className="text-xs font-medium text-slate-200 leading-snug">{ref.titre}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">{ref.auteurs}</div>
+                  <div className="flex items-center gap-2 mt-1">
+                    {ref.journal && (
+                      <span className="text-xs text-slate-500 italic">{ref.journal}{ref.annee ? `, ${ref.annee}` : ""}</span>
+                    )}
+                    {ref.pmid && (
+                      <a
+                        href={`https://pubmed.ncbi.nlm.nih.gov/${ref.pmid}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-400 hover:text-blue-300 underline transition-colors"
+                      >
+                        PMID:{ref.pmid}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 // ─── Ordonnance Panel ─────────────────────────────────────────────────────────
 
 function OrdonnancePanel() {
@@ -251,7 +310,7 @@ interface ChatInterfaceProps {
 }
 
 export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
-  const { fiche, agent, addMessage, setIsTyping, setHypotheses, setSuggestions, updateFiche, setOrdonnanceSuggree } =
+  const { fiche, agent, addMessage, setIsTyping, setHypotheses, setSuggestions, setReferences, updateFiche, setOrdonnanceSuggree } =
     useConsultationStore();
   const [input, setInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -276,8 +335,9 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
       const data = await res.json();
       if (data.hypotheses) setHypotheses(data.hypotheses);
       if (data.suggestions) setSuggestions(data.suggestions);
+      if (data.references) setReferences(data.references);
     } catch (_) {}
-  }, [setHypotheses, setSuggestions]);
+  }, [setHypotheses, setSuggestions, setReferences]);
 
   useEffect(() => {
     if (analyzeRef.current) clearTimeout(analyzeRef.current);
@@ -404,6 +464,13 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Suggestions</span>
             </div>
             <SuggestionsPanel />
+          </div>
+        )}
+
+        {/* Références PubMed */}
+        {agent.references?.length > 0 && (
+          <div className="mt-4">
+            <ReferencesPanel />
           </div>
         )}
 

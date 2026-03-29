@@ -156,6 +156,7 @@ export interface AgentState {
   alertes: AlerteClinic[];
   hypotheses: Hypothese[];
   suggestions: Suggestion[];
+  references: ReferenceScientifique[];
   messages: ChatMessage[];
   isAnalyzing: boolean;
   isTyping: boolean;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { FichePatient } from "@/types";
+import { FichePatient, ReferenceScientifique } from "@/types";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -28,8 +28,11 @@ export async function POST(req: NextRequest) {
     }
 
     const ficheResume = buildFicheResume(fiche);
+    const pubmedQuery = `${fiche.motifPrincipal || ""} ${fiche.hmaLibre || ""} diagnosis treatment`.trim();
 
-    const response = await client.messages.create({
+    // Run Claude diagnosis + PubMed fetch in parallel
+    const [response, references] = await Promise.all([
+      client.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 2048,
       system: SYSTEM_PROMPT,
@@ -39,7 +42,9 @@ export async function POST(req: NextRequest) {
           content: `Analyse et génère le JSON diagnostique:\n\n${ficheResume}`,
         },
       ],
-    });
+    }),
+      fetchPubMedRefs(pubmedQuery),
+    ]);
 
     const text = response.content[0].type === "text" ? response.content[0].text.trim() : "{}";
 
@@ -78,10 +83,45 @@ export async function POST(req: NextRequest) {
       ...s,
     }));
 
-    return NextResponse.json(result);
+    return NextResponse.json({ ...result, references });
   } catch (error) {
     console.error("Diagnose API error:", error);
-    return NextResponse.json({ hypotheses: [], suggestions: [] }, { status: 500 });
+    return NextResponse.json({ hypotheses: [], suggestions: [], references: [] }, { status: 500 });
+  }
+}
+
+async function fetchPubMedRefs(query: string): Promise<ReferenceScientifique[]> {
+  try {
+    const searchRes = await fetch(
+      `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=3&sort=relevance&retmode=json`,
+      { signal: AbortSignal.timeout(6000) }
+    );
+    const searchData = await searchRes.json();
+    const ids: string[] = searchData?.esearchresult?.idlist || [];
+    if (!ids.length) return [];
+
+    const summaryRes = await fetch(
+      `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(",")}&retmode=json`,
+      { signal: AbortSignal.timeout(6000) }
+    );
+    const summaryData = await summaryRes.json();
+    const result = summaryData?.result || {};
+
+    return ids
+      .map((id) => {
+        const art = result[id];
+        if (!art) return null;
+        return {
+          titre: art.title || "Sans titre",
+          auteurs: (art.authors || []).slice(0, 3).map((a: { name: string }) => a.name).join(", ") || "—",
+          journal: art.source || "",
+          annee: (art.pubdate || "").split(" ")[0] || "",
+          pmid: id,
+        } as ReferenceScientifique;
+      })
+      .filter(Boolean) as ReferenceScientifique[];
+  } catch {
+    return [];
   }
 }
 
