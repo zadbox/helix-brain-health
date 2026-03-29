@@ -11,49 +11,66 @@ import { useState, useRef, useEffect, useCallback } from "react";
 
 // ─── Speech Recognition Hook ──────────────────────────────────────────────────
 
-function useSpeechRecognition(onResult: (text: string) => void) {
+function useSpeechRecognition(onUpdate: (text: string) => void) {
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
+  const baseTextRef = useRef("");   // text confirmed before current session
+  const sessionFinalRef = useRef(""); // finalized text within current session
 
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any;
-    const SpeechRecognition = w.SpeechRecognition || w.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      setSupported(true);
-      const rec = new SpeechRecognition();
-      rec.lang = "fr-FR";
-      rec.continuous = false;
-      rec.interimResults = false;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      rec.onresult = (e: any) => {
-        const transcript = Array.from(e.results)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .map((r: any) => r[0].transcript)
-          .join(" ");
-        onResult(transcript);
-      };
-      rec.onend = () => setListening(false);
-      rec.onerror = () => setListening(false);
-      recognitionRef.current = rec;
-    }
-  }, [onResult]);
+    const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!SR) return;
+    setSupported(true);
+    const rec = new SR();
+    rec.lang = "fr-FR";
+    rec.continuous = true;
+    rec.interimResults = true;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rec.onresult = (e: any) => {
+      let interim = "";
+      let newFinal = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) newFinal += t + " ";
+        else interim += t;
+      }
+      if (newFinal) sessionFinalRef.current += newFinal;
+      const full = (baseTextRef.current + sessionFinalRef.current + interim).trim();
+      onUpdate(full);
+    };
+    rec.onend = () => {
+      // Commit session finals into base, reset session
+      baseTextRef.current = (baseTextRef.current + sessionFinalRef.current).trimStart();
+      sessionFinalRef.current = "";
+      setListening(false);
+    };
+    rec.onerror = () => setListening(false);
+    recognitionRef.current = rec;
+  }, [onUpdate]);
 
   const toggle = useCallback(() => {
     const rec = recognitionRef.current;
     if (!rec) return;
     if (listening) {
       rec.stop();
-      setListening(false);
     } else {
+      sessionFinalRef.current = "";
       rec.start();
       setListening(true);
     }
   }, [listening]);
 
-  return { listening, supported, toggle };
+  // Reset base when input is cleared externally
+  const resetBase = useCallback(() => {
+    baseTextRef.current = "";
+    sessionFinalRef.current = "";
+  }, []);
+
+  return { listening, supported, toggle, resetBase };
 }
 
 // ─── Typing Indicator ─────────────────────────────────────────────────────────
@@ -364,11 +381,15 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSpeechResult = useCallback((text: string) => {
-    setInput((prev) => (prev ? `${prev} ${text}` : text));
-    inputRef.current?.focus();
+  const handleSpeechUpdate = useCallback((text: string) => {
+    setInput(text);
+    // Auto-resize textarea
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+      inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 140)}px`;
+    }
   }, []);
-  const { listening, supported: speechSupported, toggle: toggleMic } = useSpeechRecognition(handleSpeechResult);
+  const { listening, supported: speechSupported, toggle: toggleMic, resetBase } = useSpeechRecognition(handleSpeechUpdate);
 
   // Auto-scroll
   useEffect(() => {
@@ -402,6 +423,7 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
     const messageText = text ?? input.trim();
     if (!messageText || isLoading) return;
     setInput("");
+    resetBase();
     if (inputRef.current) inputRef.current.style.height = "auto";
 
     const userMsg: ChatMessage = {
