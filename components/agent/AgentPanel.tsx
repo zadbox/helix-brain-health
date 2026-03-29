@@ -101,11 +101,16 @@ function HypothesesPanel() {
             className="w-full flex items-center justify-between px-3 py-2.5 text-left"
             onClick={() => setExpanded(expanded === h.id ? null : h.id)}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <div className={cn("w-2 h-2 rounded-full shrink-0", probColors[h.probabilite])} />
-              <span className="text-sm font-medium text-white">{h.diagnostic}</span>
+              <span className="text-sm font-medium text-white truncate">{h.diagnostic}</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 shrink-0">
+              {h.codeICD10 && (
+                <span className="text-xs px-1.5 py-0.5 rounded bg-slate-600 text-slate-300 font-mono">
+                  {h.codeICD10}
+                </span>
+              )}
               <span
                 className={cn(
                   "text-xs px-2 py-0.5 rounded-full text-white font-semibold",

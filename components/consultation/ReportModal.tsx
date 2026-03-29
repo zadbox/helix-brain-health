@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Download, Printer, Loader2 } from "lucide-react";
 import { useConsultationStore } from "@/store/consultation";
+import { ReferenceScientifique } from "@/types";
 
 // ─── Doctor profile (later: from settings) ───────────────────────────────────
 const DOCTOR = {
@@ -26,6 +27,7 @@ interface ReportModalProps {
 export function ReportModal({ open, onClose }: ReportModalProps) {
   const { fiche, agent } = useConsultationStore();
   const [report, setReport] = useState("");
+  const [references, setReferences] = useState<ReferenceScientifique[]>([]);
   const [loading, setLoading] = useState(false);
   const [generated, setGenerated] = useState(false);
 
@@ -43,6 +45,7 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
       });
       const data = await res.json();
       setReport(data.compteRendu || "");
+      setReferences(data.references || []);
       setGenerated(true);
     } finally {
       setLoading(false);
@@ -196,6 +199,18 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
     </div>
   </div>
 
+  ${references.length ? `
+  <!-- RÉFÉRENCES PUBMED -->
+  <div class="section" style="margin-top:18px;border-top:1px solid #e2e8f0;padding-top:12px">
+    <div class="section-title">Références Scientifiques — PubMed</div>
+    ${references.map((r, i) => `
+    <div style="font-size:8.5pt;color:#555;margin-bottom:5px;padding-left:8px">
+      <span style="color:#0891B2;font-weight:700">[${i + 1}]</span>
+      <strong>${r.auteurs}</strong>. "${r.titre}". <em>${r.journal}</em>${r.annee ? `, ${r.annee}` : ""}.
+      ${r.pmid ? `PMID: <a href="https://pubmed.ncbi.nlm.nih.gov/${r.pmid}" style="color:#0891B2">${r.pmid}</a>` : ""}
+    </div>`).join("")}
+  </div>` : ""}
+
   <!-- FOOTER -->
   <div class="footer">
     <span>Document confidentiel — Usage médical uniquement</span>
@@ -320,6 +335,38 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
                     }
                     return <p key={i} className="text-gray-700 leading-relaxed whitespace-pre-wrap">{block}</p>;
                   })}
+
+                  {/* PubMed References */}
+                  {references.length > 0 && (
+                    <div className="mt-4 border-t border-gray-200 pt-4">
+                      <div className="text-xs font-bold uppercase tracking-wider text-[#0891B2] mb-3">
+                        Références Scientifiques — PubMed
+                      </div>
+                      <div className="space-y-2">
+                        {references.map((ref, i) => (
+                          <div key={i} className="flex gap-2 text-xs text-gray-600 bg-blue-50 rounded-lg px-3 py-2">
+                            <span className="font-bold text-[#0891B2] shrink-0">[{i + 1}]</span>
+                            <div>
+                              <span className="font-medium text-gray-800">{ref.auteurs}</span>
+                              {" — "}
+                              <span className="italic">{ref.titre}</span>
+                              {ref.journal && <span className="text-gray-500"> {ref.journal}{ref.annee ? `, ${ref.annee}` : ""}</span>}
+                              {ref.pmid && (
+                                <a
+                                  href={`https://pubmed.ncbi.nlm.nih.gov/${ref.pmid}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="ml-1 text-[#0891B2] underline"
+                                >
+                                  PMID:{ref.pmid}
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -328,7 +375,7 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
             {generated && (
               <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
                 <button
-                  onClick={() => { setGenerated(false); setReport(""); }}
+                  onClick={() => { setGenerated(false); setReport(""); setReferences([]); }}
                   className="text-sm text-gray-500 hover:text-gray-700 underline"
                 >
                   Régénérer

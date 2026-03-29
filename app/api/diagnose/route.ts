@@ -11,9 +11,10 @@ RÈGLES:
 - Maximum 3 hypothèses, maximum 4 suggestions — sois concis
 - Chaque champ "arguments" et "ddx" : maximum 3 items courts
 - Réponds en français médical
+- Inclus le code CIM-10 exact pour chaque hypothèse dans le champ "codeICD10"
 
 FORMAT STRICT (respecte exactement cette structure):
-{"hypotheses":[{"id":"h0","diagnostic":"string","probabilite":"haute","arguments":["arg1","arg2"],"ddx":["dd1"]},{"id":"h1","diagnostic":"string","probabilite":"moyenne","arguments":["arg1"],"ddx":["dd1"]}],"suggestions":[{"id":"s0","type":"question","texte":"string"},{"id":"s1","type":"examen","texte":"string"}]}`;
+{"hypotheses":[{"id":"h0","diagnostic":"string","codeICD10":"X00.0","probabilite":"haute","arguments":["arg1","arg2"],"ddx":["dd1"]},{"id":"h1","diagnostic":"string","codeICD10":"X00.1","probabilite":"moyenne","arguments":["arg1"],"ddx":["dd1"]}],"suggestions":[{"id":"s0","type":"question","texte":"string"},{"id":"s1","type":"examen","texte":"string"}]}`;
 
 export async function POST(req: NextRequest) {
   try {

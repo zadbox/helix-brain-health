@@ -123,6 +123,16 @@ export interface Hypothese {
   score?: number;
   arguments?: string[];
   ddx?: string[];
+  codeICD10?: string;
+}
+
+export interface ReferenceScientifique {
+  titre: string;
+  auteurs: string;
+  journal: string;
+  annee: string;
+  pmid?: string;
+  resume?: string;
 }
 
 export interface Suggestion {
