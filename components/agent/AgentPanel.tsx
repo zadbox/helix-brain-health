@@ -361,7 +361,7 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
     useConsultationStore();
   const [input, setInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSpeechResult = useCallback((text: string) => {
@@ -402,6 +402,7 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
     const messageText = text ?? input.trim();
     if (!messageText || isLoading) return;
     setInput("");
+    if (inputRef.current) inputRef.current.style.height = "auto";
 
     const userMsg: ChatMessage = {
       id: generateId(),
@@ -670,15 +671,20 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
               )}
             </button>
           )}
-          <input
+          <textarea
             ref={inputRef}
-            type="text"
+            rows={1}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              e.target.style.height = "auto";
+              e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`;
+            }}
             onKeyDown={handleKeyDown}
             placeholder={listening ? "Parlez..." : "Posez une question ou dictez une info patient..."}
             disabled={isLoading}
-            className="flex-1 bg-transparent text-sm text-white placeholder:text-slate-500 outline-none"
+            className="flex-1 bg-transparent text-sm text-white placeholder:text-slate-500 outline-none resize-none overflow-y-auto leading-relaxed py-0.5"
+            style={{ maxHeight: "140px" }}
           />
           <button
             onClick={() => sendMessage()}
