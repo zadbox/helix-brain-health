@@ -434,9 +434,18 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
       };
       addMessage(agentMsg);
 
-      // Apply fiche updates from agent
+      // Apply fiche updates from agent — expand dot-notation keys if any
       if (data.ficheUpdate && Object.keys(data.ficheUpdate).length > 0) {
-        updateFiche(data.ficheUpdate);
+        const expanded: Record<string, unknown> = {};
+        for (const [key, val] of Object.entries(data.ficheUpdate)) {
+          if (key.includes(".")) {
+            const [parent, child] = key.split(".");
+            expanded[parent] = { ...(expanded[parent] as object || {}), [child]: val };
+          } else {
+            expanded[key] = val;
+          }
+        }
+        updateFiche(expanded as Partial<import("@/types").FichePatient>);
       }
 
       // If ordonnance

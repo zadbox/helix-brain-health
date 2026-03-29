@@ -71,7 +71,18 @@ export const useConsultationStore = create<ConsultationStore>((set, get) => ({
 
   updateFiche: (updates) => {
     set((state) => {
-      const newFiche = { ...state.fiche, ...updates };
+      // Deep merge nested objects so partial updates don't wipe existing fields
+      const NESTED_KEYS: (keyof FichePatient)[] = ["hmaDouleur", "hmaFievre", "constantes", "examenClinique"];
+      const merged = { ...updates };
+      for (const key of NESTED_KEYS) {
+        if (updates[key] && state.fiche[key]) {
+          (merged as Record<string, unknown>)[key] = {
+            ...(state.fiche[key] as object),
+            ...(updates[key] as object),
+          };
+        }
+      }
+      const newFiche = { ...state.fiche, ...merged };
 
       // Auto-check constantes for alerts
       let alertes = state.agent.alertes;
