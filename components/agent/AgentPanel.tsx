@@ -9,6 +9,53 @@ import Image from "next/image";
 import { Send, ChevronDown, ChevronUp, CheckCheck } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 
+// ─── Speech Recognition Hook ──────────────────────────────────────────────────
+
+function useSpeechRecognition(onResult: (text: string) => void) {
+  const [listening, setListening] = useState(false);
+  const [supported, setSupported] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    const SpeechRecognition = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      setSupported(true);
+      const rec = new SpeechRecognition();
+      rec.lang = "fr-FR";
+      rec.continuous = false;
+      rec.interimResults = false;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      rec.onresult = (e: any) => {
+        const transcript = Array.from(e.results)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((r: any) => r[0].transcript)
+          .join(" ");
+        onResult(transcript);
+      };
+      rec.onend = () => setListening(false);
+      rec.onerror = () => setListening(false);
+      recognitionRef.current = rec;
+    }
+  }, [onResult]);
+
+  const toggle = useCallback(() => {
+    const rec = recognitionRef.current;
+    if (!rec) return;
+    if (listening) {
+      rec.stop();
+      setListening(false);
+    } else {
+      rec.start();
+      setListening(true);
+    }
+  }, [listening]);
+
+  return { listening, supported, toggle };
+}
+
 // ─── Typing Indicator ─────────────────────────────────────────────────────────
 
 function TypingIndicator() {
@@ -317,6 +364,12 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const handleSpeechResult = useCallback((text: string) => {
+    setInput((prev) => (prev ? `${prev} ${text}` : text));
+    inputRef.current?.focus();
+  }, []);
+  const { listening, supported: speechSupported, toggle: toggleMic } = useSpeechRecognition(handleSpeechResult);
+
   // Auto-scroll
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -571,14 +624,50 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
 
       {/* Chat Input */}
       <div className="px-4 py-3 border-t border-slate-700 flex-shrink-0">
-        <div className="flex gap-2 items-center bg-slate-800 rounded-xl border border-slate-600 px-3 py-2">
+        {/* Recording indicator */}
+        {listening && (
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-xs text-red-400">Écoute en cours... parlez maintenant</span>
+          </div>
+        )}
+        <div className={cn(
+          "flex gap-2 items-center bg-slate-800 rounded-xl border px-3 py-2 transition-colors",
+          listening ? "border-red-500/60" : "border-slate-600"
+        )}>
+          {/* Mic button */}
+          {speechSupported && (
+            <button
+              onClick={toggleMic}
+              disabled={isLoading}
+              title={listening ? "Arrêter l'écoute" : "Dicter par microphone"}
+              className={cn(
+                "w-7 h-7 rounded-full flex items-center justify-center transition-all shrink-0",
+                listening
+                  ? "bg-red-500/20 text-red-400 border border-red-500/50"
+                  : "text-slate-500 hover:text-slate-300 hover:bg-slate-700"
+              )}
+            >
+              {listening ? (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
+                </svg>
+              ) : (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                  <line x1="12" y1="19" x2="12" y2="22"/>
+                </svg>
+              )}
+            </button>
+          )}
           <input
             ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Posez une question ou dictez une info patient..."
+            placeholder={listening ? "Parlez..." : "Posez une question ou dictez une info patient..."}
             disabled={isLoading}
             className="flex-1 bg-transparent text-sm text-white placeholder:text-slate-500 outline-none"
           />
