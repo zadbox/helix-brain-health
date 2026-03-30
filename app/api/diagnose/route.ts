@@ -24,15 +24,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         hypotheses: [],
         suggestions: [{ id: "s0", type: "question", texte: "Renseignez le motif principal de consultation" }],
+        references: [],
       });
     }
 
     const ficheResume = buildFicheResume(fiche);
-    const pubmedQuery = `${fiche.motifPrincipal || ""} ${fiche.hmaLibre || ""} diagnosis treatment`.trim();
 
-    // Run Claude diagnosis + PubMed fetch in parallel
-    const [response, references] = await Promise.all([
-      client.messages.create({
+    // Step 1 — Claude diagnosis
+    const response = await client.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 2048,
       system: SYSTEM_PROMPT,
@@ -42,25 +41,20 @@ export async function POST(req: NextRequest) {
           content: `Analyse et génère le JSON diagnostique:\n\n${ficheResume}`,
         },
       ],
-    }),
-      fetchPubMedRefs(pubmedQuery),
-    ]);
+    });
 
     const text = response.content[0].type === "text" ? response.content[0].text.trim() : "{}";
 
     // Parse JSON robustly
     let result: { hypotheses: Record<string, unknown>[]; suggestions: Record<string, unknown>[] } = { hypotheses: [], suggestions: [] };
     try {
-      // Try direct parse first
       result = JSON.parse(text);
     } catch {
-      // Extract JSON block from markdown or partial response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         try {
           result = JSON.parse(jsonMatch[0]);
         } catch {
-          // Last resort: try to fix truncated JSON by closing open brackets
           try {
             const fixed = jsonMatch[0]
               .replace(/,\s*$/, "")
@@ -83,6 +77,10 @@ export async function POST(req: NextRequest) {
       ...s,
     }));
 
+    // Step 2 — PubMed using actual diagnosis terms from Claude
+    const hypotheses = result.hypotheses as Array<{ diagnostic?: string; codeICD10?: string }>;
+    const references = await fetchPubMedRefs(hypotheses, fiche);
+
     return NextResponse.json({ ...result, references });
   } catch (error) {
     console.error("Diagnose API error:", error);
@@ -90,8 +88,41 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function fetchPubMedRefs(query: string): Promise<ReferenceScientifique[]> {
+function buildPubMedQuery(
+  hypotheses: Array<{ diagnostic?: string; codeICD10?: string }>,
+  fiche: FichePatient
+): string {
+  const mainDiag = hypotheses[0]?.diagnostic || "";
+  const secondDiag = hypotheses[1]?.diagnostic || "";
+
+  // Build a precise clinical query from the actual diagnosis
+  const terms: string[] = [];
+
+  if (mainDiag) terms.push(`"${mainDiag}"`);
+  if (secondDiag && secondDiag !== mainDiag) terms.push(`"${secondDiag}"`);
+
+  // Add clinical context filters for relevance
+  const contextTerms: string[] = [];
+  if (fiche.age && fiche.age < 18) contextTerms.push("pediatric");
+  else if (fiche.age && fiche.age > 65) contextTerms.push("elderly");
+  if (fiche.hmaDouleur) contextTerms.push("pain management");
+  if (fiche.hmaFievre) contextTerms.push("fever");
+
+  const diagPart = terms.join(" OR ");
+  const ctxPart = contextTerms.length ? ` AND (${contextTerms.join(" OR ")})` : " AND (diagnosis OR treatment OR management)";
+
+  return `(${diagPart})${ctxPart}`;
+}
+
+async function fetchPubMedRefs(
+  hypotheses: Array<{ diagnostic?: string; codeICD10?: string }>,
+  fiche: FichePatient
+): Promise<ReferenceScientifique[]> {
+  if (!hypotheses.length || !hypotheses[0]?.diagnostic) return [];
+
   try {
+    const query = buildPubMedQuery(hypotheses, fiche);
+
     const searchRes = await fetch(
       `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=3&sort=relevance&retmode=json`,
       { signal: AbortSignal.timeout(6000) }
@@ -105,11 +136,11 @@ async function fetchPubMedRefs(query: string): Promise<ReferenceScientifique[]> 
       { signal: AbortSignal.timeout(6000) }
     );
     const summaryData = await summaryRes.json();
-    const result = summaryData?.result || {};
+    const resultMap = summaryData?.result || {};
 
     return ids
       .map((id) => {
-        const art = result[id];
+        const art = resultMap[id];
         if (!art) return null;
         return {
           titre: art.title || "Sans titre",
