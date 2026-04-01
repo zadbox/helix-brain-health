@@ -16,8 +16,11 @@ function useSpeechRecognition(onUpdate: (text: string) => void) {
   const [supported, setSupported] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
-  const baseTextRef = useRef("");   // text confirmed before current session
-  const sessionFinalRef = useRef(""); // finalized text within current session
+  const baseTextRef = useRef("");
+  const sessionFinalRef = useRef("");
+  // Stable ref for the callback — avoids recreating recognition on each render
+  const onUpdateRef = useRef(onUpdate);
+  useEffect(() => { onUpdateRef.current = onUpdate; });
 
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -29,6 +32,7 @@ function useSpeechRecognition(onUpdate: (text: string) => void) {
     rec.lang = "fr-FR";
     rec.continuous = true;
     rec.interimResults = true;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rec.onresult = (e: any) => {
       let interim = "";
@@ -40,31 +44,48 @@ function useSpeechRecognition(onUpdate: (text: string) => void) {
       }
       if (newFinal) sessionFinalRef.current += newFinal;
       const full = (baseTextRef.current + sessionFinalRef.current + interim).trim();
-      onUpdate(full);
+      onUpdateRef.current(full);
     };
+
     rec.onend = () => {
-      // Commit session finals into base, reset session
       baseTextRef.current = (baseTextRef.current + sessionFinalRef.current).trimStart();
       sessionFinalRef.current = "";
       setListening(false);
     };
-    rec.onerror = () => setListening(false);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rec.onerror = (e: any) => {
+      // "no-speech" is not a fatal error — just stop gracefully
+      if (e.error !== "no-speech") console.warn("Speech error:", e.error);
+      setListening(false);
+    };
+
     recognitionRef.current = rec;
-  }, [onUpdate]);
+
+    return () => {
+      try { rec.abort(); } catch { /* ignore */ }
+    };
+  }, []); // run once — stable forever
 
   const toggle = useCallback(() => {
     const rec = recognitionRef.current;
     if (!rec) return;
     if (listening) {
       rec.stop();
+      setListening(false);
     } else {
       sessionFinalRef.current = "";
-      rec.start();
-      setListening(true);
+      try {
+        rec.start();
+        setListening(true);
+      } catch {
+        // Already started — abort and restart
+        rec.abort();
+        setTimeout(() => { rec.start(); setListening(true); }, 200);
+      }
     }
   }, [listening]);
 
-  // Reset base when input is cleared externally
   const resetBase = useCallback(() => {
     baseTextRef.current = "";
     sessionFinalRef.current = "";

@@ -43,7 +43,9 @@ export async function POST(req: NextRequest) {
       ],
     });
 
-    const text = response.content[0].type === "text" ? response.content[0].text.trim() : "{}";
+    const raw = response.content[0].type === "text" ? response.content[0].text.trim() : "{}";
+    // Strip markdown code fences (```json ... ``` or ``` ... ```)
+    const text = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
 
     // Parse JSON robustly
     let result: { hypotheses: Record<string, unknown>[]; suggestions: Record<string, unknown>[] } = { hypotheses: [], suggestions: [] };
@@ -62,7 +64,7 @@ export async function POST(req: NextRequest) {
               .replace(/,\s*\}/, "}");
             result = JSON.parse(fixed);
           } catch {
-            console.error("Could not parse response:", text.slice(0, 200));
+            console.error("Could not parse response:", raw.slice(0, 200));
           }
         }
       }
