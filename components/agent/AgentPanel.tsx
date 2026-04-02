@@ -446,6 +446,8 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
     setInput("");
     resetBase();
     if (inputRef.current) inputRef.current.style.height = "auto";
+    // Stop mic if active
+    if (listening) toggleMic();
 
     const userMsg: ChatMessage = {
       id: generateId(),
@@ -512,7 +514,7 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
       setIsTyping(false);
       setIsLoading(false);
     }
-  }, [input, isLoading, fiche, agent.messages, addMessage, setIsTyping, updateFiche, setOrdonnanceSuggree, onReportRequest]);
+  }, [input, isLoading, fiche, agent.messages, addMessage, setIsTyping, updateFiche, setOrdonnanceSuggree, onReportRequest, listening, toggleMic, resetBase]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
