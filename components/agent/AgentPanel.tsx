@@ -91,7 +91,17 @@ function useSpeechRecognition(onUpdate: (text: string) => void) {
     sessionFinalRef.current = "";
   }, []);
 
-  return { listening, supported, toggle, resetBase };
+  // Hard stop — aborts immediately, no pending onresult fires
+  const stopNow = useCallback(() => {
+    const rec = recognitionRef.current;
+    if (!rec) return;
+    try { rec.abort(); } catch { /* ignore */ }
+    baseTextRef.current = "";
+    sessionFinalRef.current = "";
+    setListening(false);
+  }, []);
+
+  return { listening, supported, toggle, resetBase, stopNow };
 }
 
 // ─── Typing Indicator ─────────────────────────────────────────────────────────
@@ -410,7 +420,7 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
       inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 140)}px`;
     }
   }, []);
-  const { listening, supported: speechSupported, toggle: toggleMic, resetBase } = useSpeechRecognition(handleSpeechUpdate);
+  const { listening, supported: speechSupported, toggle: toggleMic, resetBase, stopNow: stopMicNow } = useSpeechRecognition(handleSpeechUpdate);
 
   // Auto-scroll
   useEffect(() => {
@@ -446,8 +456,8 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
     setInput("");
     resetBase();
     if (inputRef.current) inputRef.current.style.height = "auto";
-    // Stop mic if active
-    if (listening) toggleMic();
+    // Hard-stop mic immediately — prevents pending onresult from refilling input
+    if (listening) stopMicNow();
 
     const userMsg: ChatMessage = {
       id: generateId(),
@@ -514,7 +524,7 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
       setIsTyping(false);
       setIsLoading(false);
     }
-  }, [input, isLoading, fiche, agent.messages, addMessage, setIsTyping, updateFiche, setOrdonnanceSuggree, onReportRequest, listening, toggleMic, resetBase]);
+  }, [input, isLoading, fiche, agent.messages, addMessage, setIsTyping, updateFiche, setOrdonnanceSuggree, onReportRequest, listening, stopMicNow]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
