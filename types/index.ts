@@ -124,6 +124,7 @@ export interface Hypothese {
   arguments?: string[];
   ddx?: string[];
   codeICD10?: string;
+  meshEN?: string[];
 }
 
 export interface ReferenceScientifique {

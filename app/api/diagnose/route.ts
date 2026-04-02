@@ -11,10 +11,11 @@ RÈGLES:
 - Maximum 3 hypothèses, maximum 4 suggestions — sois concis
 - Chaque champ "arguments" et "ddx" : maximum 3 items courts
 - Réponds en français médical
-- Inclus le code CIM-10 exact pour chaque hypothèse dans le champ "codeICD10"
+- Inclus le code CIM-10 exact dans "codeICD10"
+- Inclus dans "meshEN" 2-3 mots-clés anglais MeSH pour PubMed (ex: "acute coronary syndrome", "myocardial infarction")
 
 FORMAT STRICT (respecte exactement cette structure):
-{"hypotheses":[{"id":"h0","diagnostic":"string","codeICD10":"X00.0","probabilite":"haute","arguments":["arg1","arg2"],"ddx":["dd1"]},{"id":"h1","diagnostic":"string","codeICD10":"X00.1","probabilite":"moyenne","arguments":["arg1"],"ddx":["dd1"]}],"suggestions":[{"id":"s0","type":"question","texte":"string"},{"id":"s1","type":"examen","texte":"string"}]}`;
+{"hypotheses":[{"id":"h0","diagnostic":"string","codeICD10":"X00.0","meshEN":["term1","term2"],"probabilite":"haute","arguments":["arg1","arg2"],"ddx":["dd1"]},{"id":"h1","diagnostic":"string","codeICD10":"X00.1","meshEN":["term1"],"probabilite":"moyenne","arguments":["arg1"],"ddx":["dd1"]}],"suggestions":[{"id":"s0","type":"question","texte":"string"},{"id":"s1","type":"examen","texte":"string"}]}`;
 
 export async function POST(req: NextRequest) {
   try {
@@ -80,7 +81,7 @@ export async function POST(req: NextRequest) {
     }));
 
     // Step 2 — PubMed using actual diagnosis terms from Claude
-    const hypotheses = result.hypotheses as Array<{ diagnostic?: string; codeICD10?: string }>;
+    const hypotheses = result.hypotheses as Array<{ diagnostic?: string; codeICD10?: string; meshEN?: string[] }>;
     const references = await fetchPubMedRefs(hypotheses, fiche);
 
     return NextResponse.json({ ...result, references });
@@ -90,47 +91,59 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function buildPubMedQuery(
-  hypotheses: Array<{ diagnostic?: string; codeICD10?: string }>,
+function buildPubMedQueryCascade(
+  hypotheses: Array<{ diagnostic?: string; codeICD10?: string; meshEN?: string[] }>,
   fiche: FichePatient
-): string {
+): string[] {
+  const mainMesh = hypotheses[0]?.meshEN?.slice(0, 2) || [];
   const mainDiag = hypotheses[0]?.diagnostic || "";
-  const secondDiag = hypotheses[1]?.diagnostic || "";
 
-  // Build a precise clinical query from the actual diagnosis
-  const terms: string[] = [];
+  // Population filter
+  let popFilter = "";
+  if (fiche.age && fiche.age < 18) popFilter = " AND (child[MeSH Terms] OR adolescent[MeSH Terms])";
+  else if (fiche.age && fiche.age > 65) popFilter = " AND (aged[MeSH Terms])";
 
-  if (mainDiag) terms.push(`"${mainDiag}"`);
-  if (secondDiag && secondDiag !== mainDiag) terms.push(`"${secondDiag}"`);
+  const pubTypeStrict = " AND (\"Guideline\"[pt] OR \"Systematic Review\"[pt] OR \"Review\"[pt])";
+  const pubTypeRelaxed = " AND (\"Clinical Trial\"[pt] OR \"Review\"[pt] OR \"Guideline\"[pt] OR \"Journal Article\"[pt])";
 
-  // Add clinical context filters for relevance
-  const contextTerms: string[] = [];
-  if (fiche.age && fiche.age < 18) contextTerms.push("pediatric");
-  else if (fiche.age && fiche.age > 65) contextTerms.push("elderly");
-  if (fiche.hmaDouleur) contextTerms.push("pain management");
-  if (fiche.hmaFievre) contextTerms.push("fever");
+  const meshPart = mainMesh.map((t) => `"${t}"[MeSH Terms]`).join(" OR ");
+  const titlePart = mainMesh.map((t) => `"${t}"[Title/Abstract]`).join(" OR ");
+  const diagPart = `"${mainDiag}"[Title/Abstract]`;
 
-  const diagPart = terms.join(" OR ");
-  const ctxPart = contextTerms.length ? ` AND (${contextTerms.join(" OR ")})` : " AND (diagnosis OR treatment OR management)";
+  const queries: string[] = [];
 
-  return `(${diagPart})${ctxPart}`;
+  // 1. Strict: MeSH + population + review/guideline
+  if (meshPart) queries.push(`(${meshPart})${popFilter}${pubTypeStrict}`);
+  // 2. MeSH + review only (no population filter)
+  if (meshPart) queries.push(`(${meshPart})${pubTypeStrict}`);
+  // 3. Title/Abstract MeSH terms + review
+  if (titlePart) queries.push(`(${titlePart})${pubTypeRelaxed}`);
+  // 4. Last resort: diagnosis name in title
+  queries.push(`(${diagPart})${pubTypeRelaxed}`);
+
+  return queries;
 }
 
 async function fetchPubMedRefs(
-  hypotheses: Array<{ diagnostic?: string; codeICD10?: string }>,
+  hypotheses: Array<{ diagnostic?: string; codeICD10?: string; meshEN?: string[] }>,
   fiche: FichePatient
 ): Promise<ReferenceScientifique[]> {
   if (!hypotheses.length || !hypotheses[0]?.diagnostic) return [];
 
-  try {
-    const query = buildPubMedQuery(hypotheses, fiche);
+  // Build queries: strict → relaxed → title-only fallback
+  const queries = buildPubMedQueryCascade(hypotheses, fiche);
 
-    const searchRes = await fetch(
-      `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=3&sort=relevance&retmode=json`,
-      { signal: AbortSignal.timeout(6000) }
-    );
-    const searchData = await searchRes.json();
-    const ids: string[] = searchData?.esearchresult?.idlist || [];
+  try {
+    let ids: string[] = [];
+    for (const query of queries) {
+      const searchRes = await fetch(
+        `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=3&sort=relevance&retmode=json`,
+        { signal: AbortSignal.timeout(6000) }
+      );
+      const searchData = await searchRes.json();
+      ids = searchData?.esearchresult?.idlist || [];
+      if (ids.length) break; // found results — stop trying
+    }
     if (!ids.length) return [];
 
     const summaryRes = await fetch(
