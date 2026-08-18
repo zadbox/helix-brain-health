@@ -29,16 +29,6 @@ function loadRegistry(): SkillsRegistry {
   }
 }
 
-// Read a skill's SKILL.md
-function readSkillMd(skillPath: string): string {
-  try {
-    const fullPath = path.join(process.cwd(), "skills", skillPath.replace("./", ""), "SKILL.md");
-    return fs.readFileSync(fullPath, "utf-8");
-  } catch {
-    return "";
-  }
-}
-
 // Select relevant skills based on the patient fiche
 export function selectRelevantSkills(fiche: FichePatient): string {
   const registry = loadRegistry();
@@ -47,13 +37,10 @@ export function selectRelevantSkills(fiche: FichePatient): string {
   const relevantSkills: string[] = [];
 
   for (const skill of activeSkills) {
-    // Skip UI/UX skill for medical context
-    if (skill.id === "ui-ux-pro-max") continue;
-
     let relevant = false;
 
-    // Always include generaliste and compte-rendu
-    if (skill.id === "skill-generaliste" || skill.id === "skill-compte-rendu" || skill.id === "skill-ordonnance" || skill.id === "skill-medicaments-ma") {
+    // General clinical reasoning is always relevant to diagnostic orientation.
+    if (skill.id === "skill-generaliste") {
       relevant = true;
     }
 
@@ -114,6 +101,6 @@ export function selectRelevantSkills(fiche: FichePatient): string {
   }
 
   return relevantSkills.length > 0
-    ? `\n\nSKILLS MÉDICAUX ACTIFS:\n${relevantSkills.join("\n\n")}`
+    ? `\n\nDOMAINES CLINIQUES À CONSIDÉRER:\n${relevantSkills.join("\n\n")}`
     : "";
 }

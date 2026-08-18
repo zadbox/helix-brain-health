@@ -7,7 +7,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function generateId(): string {
-  return Math.random().toString(36).slice(2, 9);
+  return globalThis.crypto.randomUUID();
 }
 
 // ─── Vital Signs Alert Logic ──────────────────────────────────────────────────
@@ -16,16 +16,6 @@ export function checkConstantes(constantes: Constantes): AlerteClinic[] {
   const alertes: AlerteClinic[] = [];
 
   if (constantes.temperature !== undefined) {
-    if (constantes.temperature > 38.5) {
-      alertes.push({
-        id: generateId(),
-        niveau: "warning",
-        parametre: "Température",
-        valeur: constantes.temperature,
-        message: `Fièvre : ${constantes.temperature}°C`,
-        action: "Activer bloc fièvre, envisager bilan infectieux",
-      });
-    }
     if (constantes.temperature >= 40) {
       alertes.push({
         id: generateId(),
@@ -33,7 +23,16 @@ export function checkConstantes(constantes: Constantes): AlerteClinic[] {
         parametre: "Température",
         valeur: constantes.temperature,
         message: `Hyperthermie sévère : ${constantes.temperature}°C`,
-        action: "Urgence — refroidissement et bilan immédiat",
+        action: "Évaluation médicale immédiate selon le protocole d’urgence de l’établissement",
+      });
+    } else if (constantes.temperature > 38.5) {
+      alertes.push({
+        id: generateId(),
+        niveau: "warning",
+        parametre: "Température",
+        valeur: constantes.temperature,
+        message: `Fièvre : ${constantes.temperature}°C`,
+        action: "Confirmer la mesure et évaluer la tolérance clinique ainsi qu’un foyer infectieux",
       });
     }
   }
@@ -46,7 +45,7 @@ export function checkConstantes(constantes: Constantes): AlerteClinic[] {
         parametre: "TA Systolique",
         valeur: constantes.taSystolique,
         message: `HTA urgence : ${constantes.taSystolique} mmHg`,
-        action: "Traitement antihypertenseur d'urgence",
+        action: "Recontrôler la mesure et rechercher une atteinte d’organe cible en urgence",
       });
     } else if (constantes.taSystolique > 160) {
       alertes.push({
@@ -55,7 +54,7 @@ export function checkConstantes(constantes: Constantes): AlerteClinic[] {
         parametre: "TA Systolique",
         valeur: constantes.taSystolique,
         message: `HTA stade 2 : ${constantes.taSystolique} mmHg`,
-        action: "Optimiser traitement antihypertenseur",
+        action: "Confirmer sur plusieurs mesures et réévaluer la prise en charge cardiovasculaire",
       });
     }
     if (constantes.taSystolique < 90) {
@@ -65,7 +64,7 @@ export function checkConstantes(constantes: Constantes): AlerteClinic[] {
         parametre: "TA Systolique",
         valeur: constantes.taSystolique,
         message: `Hypotension : ${constantes.taSystolique} mmHg`,
-        action: "Chercher état de choc — remplissage vasculaire",
+        action: "Confirmer la mesure et rechercher immédiatement des signes d’hypoperfusion",
       });
     }
   }
@@ -77,7 +76,7 @@ export function checkConstantes(constantes: Constantes): AlerteClinic[] {
       parametre: "SpO2",
       valeur: constantes.spo2,
       message: `Désaturation : SpO2 ${constantes.spo2}%`,
-      action: "Évaluer oxygénothérapie — rechercher cause respiratoire",
+      action: "Confirmer la mesure, rechercher une détresse respiratoire et appliquer le protocole local",
     });
   }
 
@@ -89,7 +88,7 @@ export function checkConstantes(constantes: Constantes): AlerteClinic[] {
         parametre: "Fréquence Cardiaque",
         valeur: constantes.fc,
         message: `Tachycardie : ${constantes.fc} bpm`,
-        action: "ECG — rechercher tachycardie",
+        action: "Confirmer la fréquence, réaliser un ECG et rechercher une mauvaise tolérance",
       });
     }
     if (constantes.fc < 50) {
@@ -99,7 +98,7 @@ export function checkConstantes(constantes: Constantes): AlerteClinic[] {
         parametre: "Fréquence Cardiaque",
         valeur: constantes.fc,
         message: `Bradycardie : ${constantes.fc} bpm`,
-        action: "ECG — évaluer bradycardie",
+        action: "Confirmer la fréquence, réaliser un ECG et rechercher une mauvaise tolérance",
       });
     }
   }
@@ -111,7 +110,7 @@ export function checkConstantes(constantes: Constantes): AlerteClinic[] {
       parametre: "Fréquence Respiratoire",
       valeur: constantes.fr,
       message: `Polypnée : ${constantes.fr}/min`,
-      action: "Détresse respiratoire — évaluation urgente",
+      action: "Rechercher une détresse respiratoire et procéder à une évaluation urgente",
     });
   }
 
@@ -122,12 +121,22 @@ export function checkConstantes(constantes: Constantes): AlerteClinic[] {
 
 export function calculeProgression(fiche: Partial<import("@/types").FichePatient>): number {
   const checks = [
-    !!(fiche.nom && fiche.prenom && fiche.age && fiche.sexe),
+    !!(fiche.nom && fiche.prenom && fiche.age !== undefined && fiche.sexe),
     !!fiche.motifPrincipal,
     !!(fiche.signesAssocies && fiche.signesAssocies.length > 0),
-    !!(fiche.antecedentsMedicaux !== undefined),
-    !!(fiche.constantes && Object.keys(fiche.constantes).length > 0),
-    !!(fiche.examenClinique && Object.keys(fiche.examenClinique).length > 0),
+    !!(
+      fiche.antecedentsMedicaux?.length ||
+      fiche.antecedentsChirurgicaux ||
+      fiche.antecedentsFamiliaux?.length
+    ),
+    !!(
+      fiche.constantes &&
+      Object.values(fiche.constantes).some((value) => value !== undefined)
+    ),
+    !!(
+      fiche.examenClinique &&
+      Object.values(fiche.examenClinique).some((value) => value.trim())
+    ),
     !!(fiche.notesLibres || fiche.traitementsCours),
   ];
   const done = checks.filter(Boolean).length;

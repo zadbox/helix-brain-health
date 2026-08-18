@@ -8,7 +8,7 @@ import {
   Suggestion,
   ReferenceScientifique,
 } from "@/types";
-import { checkConstantes, generateId } from "@/lib/utils";
+import { calculeProgression, checkConstantes } from "@/lib/utils";
 
 interface ConsultationStore {
   fiche: FichePatient;
@@ -31,16 +31,16 @@ interface ConsultationStore {
   setOrdonnanceSuggree: (text: string) => void;
 }
 
-const initialFiche: FichePatient = {
+const createInitialFiche = (): FichePatient => ({
   dateConsultation: new Date().toISOString().split("T")[0],
   signesAssocies: [],
   antecedentsMedicaux: [],
   antecedentsFamiliaux: [],
   allergies: [],
   examenClinique: {},
-};
+});
 
-const initialAgent: AgentState = {
+const createInitialAgent = (): AgentState => ({
   alertes: [],
   hypotheses: [],
   suggestions: [],
@@ -48,24 +48,11 @@ const initialAgent: AgentState = {
   messages: [],
   isAnalyzing: false,
   isTyping: false,
-};
+});
 
-function calcProgression(fiche: FichePatient): number {
-  const checks = [
-    !!(fiche.nom && fiche.prenom && fiche.age && fiche.sexe),
-    !!fiche.motifPrincipal,
-    !!(fiche.signesAssocies && fiche.signesAssocies.length > 0),
-    !!(fiche.antecedentsMedicaux && fiche.antecedentsMedicaux.length >= 0),
-    !!(fiche.constantes && Object.values(fiche.constantes).some((v) => v !== undefined)),
-    !!(fiche.examenClinique && Object.keys(fiche.examenClinique).length > 0),
-    !!(fiche.notesLibres || fiche.traitementsCours),
-  ];
-  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
-}
-
-export const useConsultationStore = create<ConsultationStore>((set, get) => ({
-  fiche: initialFiche,
-  agent: initialAgent,
+export const useConsultationStore = create<ConsultationStore>((set) => ({
+  fiche: createInitialFiche(),
+  agent: createInitialAgent(),
   startTime: new Date(),
   progression: 0,
 
@@ -92,14 +79,14 @@ export const useConsultationStore = create<ConsultationStore>((set, get) => ({
 
       return {
         fiche: newFiche,
-        progression: calcProgression(newFiche),
+        progression: calculeProgression(newFiche),
         agent: { ...state.agent, alertes },
       };
     });
   },
 
   resetFiche: () =>
-    set({ fiche: initialFiche, agent: initialAgent, startTime: new Date(), progression: 0 }),
+    set({ fiche: createInitialFiche(), agent: createInitialAgent(), startTime: new Date(), progression: 0 }),
 
   setHypotheses: (hypotheses) =>
     set((state) => ({ agent: { ...state.agent, hypotheses } })),

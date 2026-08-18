@@ -4,6 +4,7 @@ import { useConsultationStore } from "@/store/consultation";
 import { FichePatient } from "@/types";
 import { cn } from "@/lib/utils";
 import { Check, Clock, User } from "lucide-react";
+import { useEffect, useState } from "react";
 
 const ETAPES = [
   { label: "Identité", short: "ID" },
@@ -17,12 +18,16 @@ const ETAPES = [
 
 function getStepCompleted(fiche: FichePatient, stepIdx: number): boolean {
   switch (stepIdx) {
-    case 0: return !!(fiche.nom && fiche.prenom && fiche.age && fiche.sexe);
+    case 0: return !!(fiche.nom && fiche.prenom && fiche.age !== undefined && fiche.sexe);
     case 1: return !!fiche.motifPrincipal;
     case 2: return !!(fiche.signesAssocies && fiche.signesAssocies.length > 0);
-    case 3: return !!(fiche.antecedentsMedicaux);
+    case 3: return Boolean(
+      fiche.antecedentsMedicaux?.length ||
+      fiche.antecedentsChirurgicaux ||
+      fiche.antecedentsFamiliaux?.length
+    );
     case 4: return !!(fiche.constantes && Object.values(fiche.constantes).some((v) => v !== undefined));
-    case 5: return !!(fiche.examenClinique && Object.keys(fiche.examenClinique).length > 0);
+    case 5: return !!(fiche.examenClinique && Object.values(fiche.examenClinique).some((value) => value.trim()));
     case 6: return !!(fiche.notesLibres || fiche.traitementsCours);
     default: return false;
   }
@@ -34,18 +39,28 @@ interface ProgressBarProps {
 
 export function ProgressBar({ onFinish }: ProgressBarProps) {
   const { fiche, progression, startTime } = useConsultationStore();
+  // Keep the first render deterministic for SSR/hydration, then update client-side.
+  const [elapsedMin, setElapsedMin] = useState(0);
 
-  const elapsedMin = Math.floor((Date.now() - startTime.getTime()) / 60000);
+  useEffect(() => {
+    const updateElapsed = () => {
+      setElapsedMin(Math.max(0, Math.floor((Date.now() - startTime.getTime()) / 60000)));
+    };
+
+    updateElapsed();
+    const intervalId = window.setInterval(updateElapsed, 60000);
+    return () => window.clearInterval(intervalId);
+  }, [startTime]);
 
   return (
-    <header className="bg-white border-b border-gray-200 shadow-sm px-4 py-2 flex items-center gap-4 flex-shrink-0">
+    <header className="flex flex-shrink-0 items-center gap-3 border-b border-gray-200 bg-white px-3 py-2 shadow-sm sm:px-4 md:gap-4">
       {/* Patient info */}
-      <div className="flex items-center gap-2 min-w-[200px]">
+      <div className="flex min-w-0 flex-1 items-center gap-2 md:min-w-[200px] md:flex-none">
         <div className="w-8 h-8 rounded-full bg-brand-blue flex items-center justify-center text-white">
           <User size={14} />
         </div>
-        <div>
-          <div className="text-sm font-semibold text-gray-800">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold text-gray-800">
             {fiche.prenom || fiche.nom
               ? `${fiche.prenom || ""} ${fiche.nom || ""}`.trim()
               : "Nouveau patient"}
@@ -58,7 +73,7 @@ export function ProgressBar({ onFinish }: ProgressBarProps) {
       </div>
 
       {/* Steps */}
-      <div className="flex items-center gap-1 flex-1 justify-center">
+      <div className="hidden flex-1 items-center justify-center gap-1 md:flex">
         {ETAPES.map((step, i) => {
           const completed = getStepCompleted(fiche, i);
           const isActive = !completed && (i === 0 || getStepCompleted(fiche, i - 1));
@@ -92,9 +107,9 @@ export function ProgressBar({ onFinish }: ProgressBarProps) {
       </div>
 
       {/* Progression + finish button */}
-      <div className="flex items-center gap-3 min-w-[160px] justify-end">
+      <div className="flex shrink-0 items-center justify-end gap-2 md:min-w-[160px] md:gap-3">
         <div className="flex items-center gap-2">
-          <div className="w-20 h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div className="h-2 w-14 overflow-hidden rounded-full bg-gray-100 sm:w-20">
             <div
               className="h-full bg-brand-blue rounded-full transition-all duration-500"
               style={{ width: `${progression}%` }}
@@ -106,7 +121,7 @@ export function ProgressBar({ onFinish }: ProgressBarProps) {
           onClick={onFinish}
           disabled={progression < 70}
           className={cn(
-            "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all",
+            "min-h-10 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all md:min-h-0",
             progression >= 70
               ? "bg-green-600 text-white hover:bg-green-700 cursor-pointer"
               : "bg-gray-100 text-gray-400 cursor-not-allowed"

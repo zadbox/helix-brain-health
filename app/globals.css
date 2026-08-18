@@ -71,6 +71,10 @@
     background-color: #e2e8f0;
     border-radius: 2px;
   }
+
+  .safe-bottom {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
 }
 
 /* Bounce animation for typing indicator */
@@ -83,4 +87,13 @@
 @media print {
   .no-print { display: none !important; }
   body { background: white; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

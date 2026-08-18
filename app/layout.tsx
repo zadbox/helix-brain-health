@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -11,6 +11,13 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0f172a",
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
@@ -19,7 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="shortcut icon" href="/BGEN-BLUE.jpeg" type="image/jpeg" />
         <link rel="apple-touch-icon" href="/BGEN-BLUE.jpeg" />
       </head>
-      <body className="h-screen overflow-hidden">{children}</body>
+      <body className="h-[100dvh] overflow-hidden">{children}</body>
     </html>
   );
 }

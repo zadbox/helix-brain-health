@@ -75,16 +75,6 @@
       "description": "Rédaction CR médical structuré, narratif clinique naturel"
     },
     {
-      "id": "ui-ux-pro-max",
-      "name": "UI/UX Pro Max (Design Intelligence)",
-      "priority": "V1",
-      "status": "active",
-      "path": "./ui-ux-pro-max",
-      "triggers": ["design", "couleur", "typographie", "composant", "style"],
-      "description": "Design intelligence: 67 UI styles, 161 palettes, 57 typographies, UX guidelines",
-      "usage": "python3 skills/ui-ux-pro-max/src/ui-ux-pro-max/scripts/search.py '<query>' --domain <style|color|typography|ux|chart> -n 3"
-    },
-    {
       "id": "skill-gyneco",
       "name": "Gynécologie",
       "priority": "V2",

@@ -2,20 +2,55 @@
 
 import { useConsultationStore } from "@/store/consultation";
 import { ChatMessage, FichePatient } from "@/types";
-import { generateId, formatTime } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import { cn, formatTime, generateId } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { Send, ChevronDown, ChevronUp, CheckCheck } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
+import { BodyMap } from "@/components/agent/BodyMap";
+
+interface SpeechRecognitionAlternativeLike {
+  transcript: string;
+}
+
+interface SpeechRecognitionResultLike {
+  0: SpeechRecognitionAlternativeLike;
+  isFinal: boolean;
+}
+
+interface SpeechRecognitionEventLike {
+  resultIndex: number;
+  results: ArrayLike<SpeechRecognitionResultLike>;
+}
+
+interface SpeechRecognitionErrorLike {
+  error: string;
+}
+
+interface BrowserSpeechRecognition {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onend: (() => void) | null;
+  onerror: ((event: SpeechRecognitionErrorLike) => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+}
+
+type SpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
+type SpeechRecognitionWindow = Window & {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
+};
 
 // ─── Speech Recognition Hook ──────────────────────────────────────────────────
 
 function useSpeechRecognition(onUpdate: (text: string) => void) {
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const baseTextRef = useRef("");
   const sessionFinalRef = useRef("");
   // Stable ref for the callback — avoids recreating recognition on each render
@@ -23,8 +58,7 @@ function useSpeechRecognition(onUpdate: (text: string) => void) {
   useEffect(() => { onUpdateRef.current = onUpdate; });
 
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const w = window as any;
+    const w = window as SpeechRecognitionWindow;
     const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!SR) return;
     setSupported(true);
@@ -33,8 +67,7 @@ function useSpeechRecognition(onUpdate: (text: string) => void) {
     rec.continuous = true;
     rec.interimResults = true;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    rec.onresult = (e: any) => {
+    rec.onresult = (e) => {
       let interim = "";
       let newFinal = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -53,8 +86,7 @@ function useSpeechRecognition(onUpdate: (text: string) => void) {
       setListening(false);
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    rec.onerror = (e: any) => {
+    rec.onerror = (e) => {
       // "no-speech" is not a fatal error — just stop gracefully
       if (e.error !== "no-speech") console.warn("Speech error:", e.error);
       setListening(false);
@@ -123,6 +155,22 @@ function TypingIndicator() {
       </div>
     </div>
   );
+}
+
+function mergeFicheForAnalysis(fiche: FichePatient, updates: Partial<FichePatient>): FichePatient {
+  const nestedKeys: (keyof FichePatient)[] = ["hmaDouleur", "hmaFievre", "constantes", "examenClinique"];
+  const merged: Partial<FichePatient> = { ...updates };
+
+  for (const key of nestedKeys) {
+    if (updates[key] && fiche[key]) {
+      (merged as Record<string, unknown>)[key] = {
+        ...(fiche[key] as object),
+        ...(updates[key] as object),
+      };
+    }
+  }
+
+  return { ...fiche, ...merged };
 }
 
 // ─── Alerts Zone ──────────────────────────────────────────────────────────────
@@ -405,7 +453,7 @@ interface ChatInterfaceProps {
 }
 
 export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
-  const { fiche, agent, addMessage, setIsTyping, setHypotheses, setSuggestions, setReferences, updateFiche, setOrdonnanceSuggree } =
+  const { fiche, agent, addMessage, setIsTyping, setIsAnalyzing, setHypotheses, setSuggestions, setReferences, updateFiche, setOrdonnanceSuggree } =
     useConsultationStore();
   const [input, setInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -429,26 +477,61 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
 
   // Auto-analyze fiche on changes (debounced)
   const analyzeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const analyzeSeqRef = useRef(0);
+  const analyzeAbortRef = useRef<AbortController | null>(null);
   const analyzeFiche = useCallback(async (currentFiche: FichePatient) => {
-    if (!currentFiche.motifPrincipal) return;
+    const requestId = ++analyzeSeqRef.current;
+    analyzeAbortRef.current?.abort();
+    if (!currentFiche.motifPrincipal && !currentFiche.hmaLibre) {
+      setHypotheses([]);
+      setSuggestions([]);
+      setReferences([]);
+      return;
+    }
+    const controller = new AbortController();
+    analyzeAbortRef.current = controller;
+    setIsAnalyzing(true);
     try {
       const res = await fetch("/api/diagnose", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fiche: currentFiche }),
+        signal: controller.signal,
       });
       const data = await res.json();
+      if (requestId !== analyzeSeqRef.current) return;
+      if (!res.ok) {
+        if (data.suggestions) setSuggestions(data.suggestions);
+        return;
+      }
       if (data.hypotheses) setHypotheses(data.hypotheses);
       if (data.suggestions) setSuggestions(data.suggestions);
       if (data.references) setReferences(data.references);
-    } catch (_) {}
-  }, [setHypotheses, setSuggestions, setReferences]);
+    } catch (error) {
+      if (requestId !== analyzeSeqRef.current) return;
+      if (error instanceof Error && error.name === "AbortError") return;
+      setSuggestions([{ id: "diagnose-error", type: "action", texte: "Analyse diagnostique indisponible. Réessayez dans quelques instants." }]);
+    } finally {
+      if (requestId === analyzeSeqRef.current) setIsAnalyzing(false);
+    }
+  }, [setHypotheses, setIsAnalyzing, setSuggestions, setReferences]);
 
   useEffect(() => {
     if (analyzeRef.current) clearTimeout(analyzeRef.current);
+    analyzeSeqRef.current += 1;
+    analyzeAbortRef.current?.abort();
     analyzeRef.current = setTimeout(() => analyzeFiche(fiche), 1500);
-    return () => { if (analyzeRef.current) clearTimeout(analyzeRef.current); };
+    return () => {
+      if (analyzeRef.current) clearTimeout(analyzeRef.current);
+    };
   }, [fiche, analyzeFiche]);
+
+  useEffect(
+    () => () => {
+      analyzeAbortRef.current?.abort();
+    },
+    []
+  );
 
   const sendMessage = useCallback(async (text?: string) => {
     const messageText = text ?? input.trim();
@@ -480,11 +563,23 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
         }),
       });
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.reponse || "Le moteur médical n’a pas pu répondre.");
+      }
+
+      // Guard: if reponse is itself a JSON string (truncated response fallback), extract it
+      let reponseText: string = data.reponse || "Je n'ai pas pu générer une réponse.";
+      if (reponseText.trim().startsWith("{")) {
+        try {
+          const inner = JSON.parse(reponseText);
+          if (inner.reponse) reponseText = inner.reponse;
+        } catch { /* not JSON, use as-is */ }
+      }
 
       const agentMsg: ChatMessage = {
         id: generateId(),
         role: "agent",
-        content: data.reponse || "Je n'ai pas pu générer une réponse.",
+        content: reponseText,
         timestamp: new Date(),
         ficheUpdate: data.ficheUpdate,
       };
@@ -501,7 +596,9 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
             expanded[key] = val;
           }
         }
-        updateFiche(expanded as Partial<import("@/types").FichePatient>);
+        const ficheUpdate = expanded as Partial<import("@/types").FichePatient>;
+        updateFiche(ficheUpdate);
+        await analyzeFiche(mergeFicheForAnalysis(fiche, ficheUpdate));
       }
 
       // If ordonnance
@@ -513,18 +610,21 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
       if (messageText.toLowerCase().includes("compte rendu")) {
         onReportRequest();
       }
-    } catch (_) {
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : "Erreur de connexion au moteur médical.";
       addMessage({
         id: generateId(),
         role: "agent",
-        content: "Erreur de connexion. Vérifiez votre clé API Anthropic.",
+        content: message,
         timestamp: new Date(),
       });
     } finally {
       setIsTyping(false);
       setIsLoading(false);
     }
-  }, [input, isLoading, fiche, agent.messages, addMessage, setIsTyping, updateFiche, setOrdonnanceSuggree, onReportRequest, listening, stopMicNow]);
+  }, [input, isLoading, fiche, agent.messages, addMessage, analyzeFiche, setIsTyping, updateFiche, setOrdonnanceSuggree, onReportRequest, listening, stopMicNow]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -534,7 +634,7 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-900 text-white overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-900 text-white">
 
       {/* Header */}
       <div className="px-4 py-2.5 border-b border-slate-700 flex items-center justify-between flex-shrink-0">
@@ -564,6 +664,9 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
 
         {/* Alertes */}
         <AlertesZone />
+
+        {/* Repérage corporel automatique */}
+        <BodyMap fiche={fiche} messages={agent.messages} />
 
         {/* Hypotheses */}
         {(agent.hypotheses.length > 0 || !agent.isTyping) && (
@@ -674,13 +777,13 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
       </div>
 
       {/* Quick chips */}
-      <div className="px-4 py-2 border-t border-slate-700 flex gap-1.5 overflow-x-auto flex-shrink-0">
+      <div className="flex flex-shrink-0 gap-1.5 overflow-x-auto border-t border-slate-700 px-3 py-2 sm:px-4">
         {QUICK_CHIPS.map((chip) => (
             <button
               key={chip.label}
               onClick={() => sendMessage(chip.prompt)}
               disabled={isLoading}
-              className="px-3 py-1 rounded-full bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs whitespace-nowrap transition-colors disabled:opacity-50"
+              className="min-h-10 whitespace-nowrap rounded-full bg-slate-700 px-3 py-1 text-xs text-slate-300 transition-colors hover:bg-slate-600 disabled:opacity-50 md:min-h-0"
             >
               {chip.label}
             </button>
@@ -688,7 +791,7 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
       </div>
 
       {/* Chat Input */}
-      <div className="px-4 py-3 border-t border-slate-700 flex-shrink-0">
+      <div className="safe-bottom flex-shrink-0 border-t border-slate-700 px-3 py-3 sm:px-4">
         {/* Recording indicator */}
         {listening && (
           <div className="flex items-center gap-2 mb-2 px-1">
@@ -697,7 +800,7 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
           </div>
         )}
         <div className={cn(
-          "flex gap-2 items-center bg-slate-800 rounded-xl border px-3 py-2 transition-colors",
+          "flex min-h-12 items-center gap-2 rounded-xl border bg-slate-800 px-2 py-1.5 transition-colors sm:px-3 sm:py-2",
           listening ? "border-red-500/60" : "border-slate-600"
         )}>
           {/* Mic button */}
@@ -707,7 +810,7 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
               disabled={isLoading}
               title={listening ? "Arrêter l'écoute" : "Dicter par microphone"}
               className={cn(
-                "w-7 h-7 rounded-full flex items-center justify-center transition-all shrink-0",
+                "flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all md:h-7 md:w-7",
                 listening
                   ? "bg-red-500/20 text-red-400 border border-red-500/50"
                   : "text-slate-500 hover:text-slate-300 hover:bg-slate-700"
@@ -745,7 +848,7 @@ export function AgentPanel({ onReportRequest }: ChatInterfaceProps) {
             onClick={() => sendMessage()}
             disabled={!input.trim() || isLoading}
             className={cn(
-              "w-7 h-7 rounded-full flex items-center justify-center transition-all shrink-0",
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all md:h-7 md:w-7",
               input.trim() && !isLoading
                 ? "bg-blue-500 hover:bg-blue-400 text-white"
                 : "bg-slate-700 text-slate-500 cursor-not-allowed"

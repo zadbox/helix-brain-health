@@ -164,6 +164,53 @@ export interface AgentState {
   ordonnanceSuggree?: string;
 }
 
+// ─── Structured medical report ───────────────────────────────────────────────
+
+export interface CompteRenduAntecedents {
+  medicaux: string[];
+  chirurgicaux: string;
+  familiaux: string[];
+  gynecoObstetricaux: string;
+}
+
+export interface CompteRenduConstante {
+  label: string;
+  valeur: string;
+  alerte?: boolean;
+}
+
+export interface CompteRenduExamenClinique {
+  appareil: string;
+  constatations: string;
+}
+
+export interface CompteRenduHypothese {
+  diagnostic: string;
+  probabilite: Hypothese["probabilite"];
+  codeICD10?: string;
+  arguments: string[];
+  diagnosticsDifferentiels: string[];
+}
+
+export interface CompteRenduMedical {
+  motifConsultation: string;
+  histoireMaladie: string;
+  signesAssocies: string[];
+  antecedents: CompteRenduAntecedents;
+  allergies: string[];
+  traitementsEnCours: string;
+  modeVie: string[];
+  constantes: CompteRenduConstante[];
+  examenClinique: CompteRenduExamenClinique[];
+  syntheseClinique: string;
+  hypothesesDiagnostiques: CompteRenduHypothese[];
+  examensComplementaires: string[];
+  priseEnCharge: string[];
+  conseilsSuivi: string[];
+  pointsVigilance: string[];
+  conclusion: string;
+}
+
 // ─── Progress Bar Types ───────────────────────────────────────────────────────
 
 export interface EtapeConsultation {

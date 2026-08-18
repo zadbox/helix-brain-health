@@ -1,8 +1,12 @@
 .next/
 node_modules/
+.env
+.env.*
+!.env.example
 .env.local
 .env*.local
 *.tsbuildinfo
+coverage/
 
 .DS_Store
 skills/ui-ux-pro-max/

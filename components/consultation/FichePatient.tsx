@@ -50,11 +50,12 @@ function Section({
       )}
     >
       <button
+        type="button"
         className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-gray-50/50"
         onClick={() => setOpen((v) => !v)}
       >
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-gray-700 text-sm">{title}</span>
+          <span className="font-semibold text-gray-700 text-base">{title}</span>
           {completed && <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />}
           {alert && <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block animate-pulse" />}
         </div>
@@ -83,7 +84,7 @@ function Section({
 function Field({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
   return (
     <div className="space-y-1">
-      <label className="text-xs font-medium text-gray-500">
+      <label className="text-sm font-medium text-gray-500">
         {label} {required && <span className="text-red-400">*</span>}
       </label>
       {children}
@@ -111,7 +112,7 @@ function Input({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       className={cn(
-        "w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white",
+        "w-full px-3 py-2 text-base rounded-lg border border-gray-200 bg-white",
         "focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400",
         "transition-all placeholder:text-gray-300",
         className
@@ -135,7 +136,7 @@ function Select({
     <select
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all text-gray-700"
+      className="w-full px-3 py-2 text-base rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all text-gray-700"
     >
       {placeholder && <option value="">{placeholder}</option>}
       {options.map((o) => (
@@ -162,7 +163,7 @@ function Textarea({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       rows={rows}
-      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-gray-300 resize-none"
+      className="w-full px-3 py-2 text-base rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-gray-300 resize-none"
     />
   );
 }
@@ -184,13 +185,18 @@ function CheckGroup({
   return (
     <div className={cn("grid gap-1.5", columns === 2 ? "grid-cols-2" : "grid-cols-3")}>
       {options.map((opt) => (
-        <label key={opt} className="flex items-center gap-2 cursor-pointer group">
+        <button
+          key={opt}
+          type="button"
+          aria-pressed={selected.includes(opt)}
+          onClick={() => toggle(opt)}
+          className="group flex min-h-10 items-center gap-2 rounded-lg px-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+        >
           <div
             className={cn(
               "w-4 h-4 rounded border-2 flex items-center justify-center transition-all shrink-0",
               selected.includes(opt) ? "bg-blue-500 border-blue-500" : "border-gray-300 group-hover:border-blue-400"
             )}
-            onClick={() => toggle(opt)}
           >
             {selected.includes(opt) && (
               <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 10" fill="none">
@@ -198,8 +204,44 @@ function CheckGroup({
               </svg>
             )}
           </div>
-          <span className="text-xs text-gray-600 group-hover:text-gray-800">{opt}</span>
-        </label>
+          <span className="text-sm text-gray-600 group-hover:text-gray-800">{opt}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function RadioGroup({
+  options,
+  value,
+  onChange,
+  columns = 2,
+}: {
+  options: { value: string; label: string }[];
+  value?: string;
+  onChange: (v: string) => void;
+  columns?: number;
+}) {
+  return (
+    <div className={cn("grid gap-1.5", columns === 2 ? "grid-cols-2" : "grid-cols-3")}>
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          aria-pressed={value === opt.value}
+          className="group flex min-h-10 items-center gap-2 rounded-lg px-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+          onClick={() => onChange(opt.value)}
+        >
+          <div
+            className={cn(
+              "w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all shrink-0",
+              value === opt.value ? "bg-blue-500 border-blue-500" : "border-gray-300 group-hover:border-blue-400"
+            )}
+          >
+            {value === opt.value && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+          </div>
+          <span className="text-sm text-gray-600 group-hover:text-gray-800">{opt.label}</span>
+        </button>
       ))}
     </div>
   );
@@ -229,6 +271,12 @@ function EVASlider({ value, onChange }: { value?: number; onChange: (v: number) 
   );
 }
 
+function optionalNumber(value: string): number | undefined {
+  if (value.trim() === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 // ─── Data Constants ───────────────────────────────────────────────────────────
 
 const MOTIFS: { value: MotifPrincipal; label: string }[] = [
@@ -254,6 +302,7 @@ const SIGNES_ASSOCIES = [
   "Dyspnée", "Toux", "Rhinorrhée", "Odynophagie",
   "Dysurie", "Pollakiurie", "Œdèmes", "Éruption cutanée",
   "Céphalées", "Vertiges", "Palpitations", "Syncope",
+  "Fièvre", "Saignement",
 ];
 
 const ANTECEDENTS_MEDICAUX = [
@@ -271,25 +320,68 @@ const ANTECEDENTS_FAMILIAUX = [
   "Maladies auto-immunes", "Maladies psychiatriques",
 ];
 
-const APPAREILS_EXAMEN: { key: string; label: string; placeholder: string; color: string }[] = [
+const APPAREILS_EXAMEN: { key: string; label: string; placeholder: string; color: string; findings: string[] }[] = [
   { key: "Cardiovasculaire", label: "Cardio-vasculaire", color: "bg-red-100 text-red-700 border-red-200",
-    placeholder: "Bruits du cœur (B1 B2), souffle, pouls périphériques, TA, signes d'insuffisance cardiaque..." },
+    placeholder: "Notes complémentaires...",
+    findings: ["B1B2 normaux", "Tachycardie", "Bradycardie", "Souffle systolique", "Souffle diastolique", "HTA", "Hypotension", "IC droite", "IC gauche", "Pouls faibles"] },
   { key: "Pulmonaire", label: "Pulmonaire / Respiratoire", color: "bg-sky-100 text-sky-700 border-sky-200",
-    placeholder: "Murmure vésiculaire, râles (crépitants, sibilants, ronchus), douleur pleurale, saturation..." },
+    placeholder: "Notes complémentaires...",
+    findings: ["MV normal", "Râles crépitants", "Sibilants", "Ronchus", "Diminution MV", "Douleur pleurale", "SpO2 basse", "Dyspnée"] },
   { key: "Abdominal", label: "Abdominal / Digestif", color: "bg-amber-100 text-amber-700 border-amber-200",
-    placeholder: "Inspection, palpation (défense, contracture, hépatomégalie, splénomégalie), transit, bruits hydro-aériques..." },
+    placeholder: "Notes complémentaires...",
+    findings: ["Abdomen souple", "Douleur à la palpation", "Défense", "Contracture", "Hépatomégalie", "Splénomégalie", "Masse palpable", "BHA diminués"] },
   { key: "Neurologique", label: "Neurologique", color: "bg-purple-100 text-purple-700 border-purple-200",
-    placeholder: "Conscience (GCS), paires crâniennes, déficit moteur/sensitif, réflexes ostéo-tendineux, signe de Babinski, coordination..." },
+    placeholder: "Notes complémentaires...",
+    findings: [
+      "Conscience normale", "Somnolence", "Confusion", "Coma",
+      "GCS 15/15", "Désorientation T/L/E",
+      "Déficit moteur", "Déficit sensitif", "Hémiparésie", "Hémiplégie",
+      "ROT normaux", "ROT diminués", "ROT vifs", "Babinski +",
+      "Raideur méningée", "Kernig +", "Brudzinski +",
+      "Ataxie", "Dysmétrie", "Nystagmus",
+      "Troubles du langage", "Aphasie", "Dysarthrie",
+      "PC II–XII normaux", "Ptosis", "Diplopie", "Paralysie faciale",
+      "Troubles de la marche", "Tremblements",
+    ] },
+  { key: "Ophtalmologique", label: "Ophtalmologique", color: "bg-cyan-100 text-cyan-700 border-cyan-200",
+    placeholder: "Notes complémentaires...",
+    findings: [
+      "AV normale", "BAV", "Flou visuel", "Diplopie",
+      "Fond d'œil normal", "Papilledème", "Atrophie optique", "Hémorragies rétiniennes",
+      "Champ visuel normal", "Hémianopsie", "Quadranopsie",
+      "Pupilles isocores-réactives", "Anisocorie", "Mydriase", "Myosis",
+      "Ptosis", "Nystagmus", "Paralysie oculomotrice",
+    ] },
+  { key: "Psychiatrique", label: "Psychiatrique / Cognitif", color: "bg-pink-100 text-pink-700 border-pink-200",
+    placeholder: "Notes complémentaires...",
+    findings: [
+      "Orienté T/L/E", "Désorientation temporelle", "Désorientation spatiale",
+      "Mémoire immédiate normale", "Troubles mémoire immédiate",
+      "Mémoire récente normale", "Troubles mémoire récente",
+      "Mémoire ancienne préservée", "Troubles mémoire ancienne",
+      "Attention normale", "Troubles attentionnels",
+      "Langage normal", "Aphasie", "Manque du mot",
+      "Humeur normale", "Dépression", "Anxiété", "Euphorie",
+      "Comportement adapté", "Agitation", "Apathie", "Désinhibition",
+      "Jugement conservé", "Jugement altéré",
+      "MMSE normal (≥27)", "MMSE léger (21-26)", "MMSE modéré (11-20)", "MMSE sévère (≤10)",
+      "Hallucinations", "Idées délirantes",
+    ] },
   { key: "ORL", label: "ORL / Tête & Cou", color: "bg-teal-100 text-teal-700 border-teal-200",
-    placeholder: "Oropharynx, amygdales, tympans, adénopathies, thyroïde, sinus..." },
+    placeholder: "Notes complémentaires...",
+    findings: ["Oropharynx normal", "Amygdales inflammées", "Otite", "Adénopathies", "Goitre", "Sinusite", "Déviation septale"] },
   { key: "Cutané", label: "Cutané / Téguments", color: "bg-orange-100 text-orange-700 border-orange-200",
-    placeholder: "Lésions cutanées (type, siège, étendue), muqueuses, phanères, ictère, cyanose, œdèmes..." },
+    placeholder: "Notes complémentaires...",
+    findings: ["Peau normale", "Ictère", "Cyanose", "Pâleur", "Éruption", "Œdèmes", "Lésion suspecte", "Cicatrice"] },
   { key: "Locomoteur", label: "Locomoteur / Ostéo-articulaire", color: "bg-lime-100 text-lime-700 border-lime-200",
-    placeholder: "Amplitudes articulaires, douleurs à la mobilisation, tuméfaction, chaleur, rougeur, force musculaire..." },
+    placeholder: "Notes complémentaires...",
+    findings: ["Mobilité normale", "Douleur articulaire", "Tuméfaction", "Limitation d'amplitude", "Déficit musculaire", "Déformation"] },
   { key: "Urogénital", label: "Uro-génital / Rénal", color: "bg-indigo-100 text-indigo-700 border-indigo-200",
-    placeholder: "Fosses lombaires, miction, globe vésical, organes génitaux externes, toucher rectal/vaginal si indiqué..." },
+    placeholder: "Notes complémentaires...",
+    findings: ["Fosses lombaires libres", "Douleur lombaire", "Globe vésical", "Dysurie", "Hématurie"] },
   { key: "Général", label: "État général", color: "bg-gray-100 text-gray-700 border-gray-200",
-    placeholder: "Altération de l'état général, poids, température, aspect général, niveau de conscience, coopération..." },
+    placeholder: "Notes complémentaires...",
+    findings: ["Bon état général", "Altération EG", "Fièvre", "Asthénie", "Amaigrissement", "Déshydratation"] },
 ];
 
 // ─── Auto-resize Textarea ─────────────────────────────────────────────────────
@@ -319,7 +411,7 @@ function AutoTextarea({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       rows={2}
-      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-gray-300 resize-none overflow-hidden leading-relaxed"
+      className="w-full px-3 py-2 text-base rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all placeholder:text-gray-300 resize-none overflow-hidden leading-relaxed"
     />
   );
 }
@@ -340,11 +432,22 @@ function ExamenCliniquePanel({
   const setValue = (key: string, val: string) =>
     onChange({ ...examenClinique, [key]: val });
 
+  const toggleFinding = (key: string, finding: string) => {
+    const current = getValue(key);
+    const lines = current.split("\n").map((l) => l.trim()).filter(Boolean);
+    const isActive = lines.includes(finding);
+    const next = isActive
+      ? lines.filter((l) => l !== finding).join("\n")
+      : [...lines.filter((l) => l !== "Normal"), finding].join("\n");
+    setValue(key, next);
+  };
+
+  const setNormal = (key: string) => setValue(key, "Normal");
+
   const filledCount = APPAREILS_EXAMEN.filter((a) => getValue(a.key).trim()).length;
 
   return (
     <div className="space-y-2">
-      {/* Header actions */}
       <div className="flex items-center justify-between mb-1">
         <span className="text-xs text-gray-400">
           {filledCount}/{APPAREILS_EXAMEN.length} appareils renseignés
@@ -361,6 +464,8 @@ function ExamenCliniquePanel({
         const val = getValue(appareil.key);
         const isFilled = val.trim().length > 0;
         const isOpen = showAll || expanded[appareil.key] || isFilled;
+        const activeFindings = val.split("\n").map((l) => l.trim()).filter(Boolean);
+        const isNormal = val.trim() === "Normal";
 
         return (
           <div
@@ -383,20 +488,18 @@ function ExamenCliniquePanel({
                   {appareil.label}
                 </span>
                 {isFilled && !isOpen && (
-                  <span className="text-xs text-gray-500 truncate">{val}</span>
+                  <span className="text-xs text-gray-500 truncate">{activeFindings.join(", ")}</span>
                 )}
               </div>
               <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                {isFilled && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
-                )}
+                {isFilled && <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />}
                 {isOpen
                   ? <ChevronUp size={13} className="text-gray-400" />
                   : <ChevronDown size={13} className="text-gray-400" />}
               </div>
             </button>
 
-            {/* Textarea — shown when open */}
+            {/* Interactive panel */}
             <AnimatePresence initial={false}>
               {isOpen && (
                 <motion.div
@@ -406,10 +509,50 @@ function ExamenCliniquePanel({
                   transition={{ duration: 0.15 }}
                   className="overflow-hidden"
                 >
-                  <div className="px-3 pb-3">
+                  <div className="px-3 pb-3 space-y-2">
+                    {/* Normal button + findings chips */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {/* Normal */}
+                      <button
+                        type="button"
+                        onClick={() => setNormal(appareil.key)}
+                        className={cn(
+                          "min-h-9 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all",
+                          isNormal
+                            ? "bg-green-500 border-green-500 text-white"
+                            : "bg-white border-green-300 text-green-600 hover:bg-green-50"
+                        )}
+                      >
+                        ✓ Normal
+                      </button>
+                      {/* Finding chips */}
+                      {appareil.findings.map((f) => {
+                        const active = activeFindings.includes(f);
+                        return (
+                          <button
+                            key={f}
+                            type="button"
+                            onClick={() => toggleFinding(appareil.key, f)}
+                            className={cn(
+                              "min-h-9 rounded-full border px-3 py-1.5 text-xs transition-all",
+                              active
+                                ? "bg-red-100 border-red-400 text-red-700 font-semibold"
+                                : "bg-white border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-700"
+                            )}
+                          >
+                            {f}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {/* Free text */}
                     <AutoTextarea
-                      value={val}
-                      onChange={(v) => setValue(appareil.key, v)}
+                      value={isNormal ? "" : activeFindings.filter((f) => !appareil.findings.includes(f) && f !== "Normal").join("\n")}
+                      onChange={(v) => {
+                        const chipLines = activeFindings.filter((f) => appareil.findings.includes(f));
+                        const combined = [...chipLines, ...v.split("\n").map((l) => l.trim()).filter(Boolean)].join("\n");
+                        setValue(appareil.key, combined || (isNormal ? "Normal" : ""));
+                      }}
                       placeholder={appareil.placeholder}
                     />
                   </div>
@@ -452,9 +595,9 @@ export function FichePatientForm() {
        
         color="blue"
         defaultOpen
-        completed={!!(fiche.nom && fiche.prenom && fiche.age && fiche.sexe)}
+        completed={!!(fiche.nom && fiche.prenom && fiche.age !== undefined && fiche.sexe)}
       >
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Prénom" required>
             <Input value={fiche.prenom} onChange={(v) => u("prenom", v)} placeholder="Prénom" />
           </Field>
@@ -462,7 +605,7 @@ export function FichePatientForm() {
             <Input value={fiche.nom} onChange={(v) => u("nom", v)} placeholder="Nom de famille" />
           </Field>
           <Field label="Âge" required>
-            <Input value={fiche.age} onChange={(v) => u("age", Number(v))} type="number" placeholder="Âge" />
+            <Input value={fiche.age} onChange={(v) => u("age", optionalNumber(v))} type="number" placeholder="Âge" />
           </Field>
           <Field label="Sexe" required>
             <Select
@@ -495,9 +638,10 @@ export function FichePatientForm() {
             {MOTIFS.map((m) => (
               <button
                 key={m.value}
+                type="button"
                 onClick={() => u("motifPrincipal", m.value)}
                 className={cn(
-                  "px-3 py-2 rounded-lg text-xs font-medium border transition-all text-left",
+                  "px-3 py-2 rounded-lg text-sm font-medium border transition-all text-left",
                   fiche.motifPrincipal === m.value
                     ? "bg-blue-500 text-white border-blue-500"
                     : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"
@@ -553,7 +697,7 @@ export function FichePatientForm() {
                   onChange={(v) => updateFiche({ hmaDouleur: { ...fiche.hmaDouleur, eva: v } })}
                 />
               </Field>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label="Localisation">
                   <Input
                     value={fiche.hmaDouleur?.localisation}
@@ -612,12 +756,12 @@ export function FichePatientForm() {
             exit={{ opacity: 0, height: 0 }}
           >
             <Section id="hma-fievre" title="3. HMA — Fièvre" color="red" defaultOpen>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label="Température mesurée (°C)">
                   <Input
                     type="number"
                     value={fiche.hmaFievre?.temperature}
-                    onChange={(v) => updateFiche({ hmaFievre: { ...fiche.hmaFievre, temperature: Number(v) } })}
+                    onChange={(v) => updateFiche({ hmaFievre: { ...fiche.hmaFievre, temperature: optionalNumber(v) } })}
                     placeholder="38.5"
                   />
                 </Field>
@@ -634,7 +778,6 @@ export function FichePatientForm() {
                     onChange={(v) => updateFiche({ hmaFievre: { ...fiche.hmaFievre, mode: v } })}
                     options={[
                       { value: "brutal", label: "Brutal / Soudain" },
-                      { value: "progressif", label: "Progressif" },
                       { value: "progressif", label: "Progressif" },
                     ]}
                     placeholder="Mode d'installation"
@@ -739,12 +882,12 @@ export function FichePatientForm() {
             exit={{ opacity: 0, height: 0 }}
           >
             <Section id="gyneco" title="5b. Antécédents Gynéco-Obstétricaux" color="pink">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label="Grossesses (G)">
-                  <Input type="number" value={fiche.grossesses} onChange={(v) => u("grossesses", Number(v))} placeholder="0" />
+                  <Input type="number" value={fiche.grossesses} onChange={(v) => u("grossesses", optionalNumber(v))} placeholder="0" />
                 </Field>
                 <Field label="Parités (P)">
-                  <Input type="number" value={fiche.parites} onChange={(v) => u("parites", Number(v))} placeholder="0" />
+                  <Input type="number" value={fiche.parites} onChange={(v) => u("parites", optionalNumber(v))} placeholder="0" />
                 </Field>
                 <Field label="DDR (Dernières règles)">
                   <Input type="date" value={fiche.ddr} onChange={(v) => u("ddr", v)} />
@@ -800,12 +943,12 @@ export function FichePatientForm() {
         </div>
         {fiche.tabac && (
           <Field label="Paquets-Année (PA)">
-            <Input type="number" value={fiche.tabacPA} onChange={(v) => u("tabacPA", Number(v))} placeholder="Ex: 20 PA" />
+            <Input type="number" value={fiche.tabacPA} onChange={(v) => u("tabacPA", optionalNumber(v))} placeholder="Ex: 20 PA" />
           </Field>
         )}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Activité physique">
-            <Select
+            <RadioGroup
               value={fiche.activitePhysique}
               onChange={(v) => u("activitePhysique", v)}
               options={[
@@ -814,20 +957,20 @@ export function FichePatientForm() {
                 { value: "moderee", label: "Modérée (3x/sem)" },
                 { value: "intense", label: "Intense (sportif)" },
               ]}
-              placeholder="Activité physique"
+              columns={2}
             />
           </Field>
           <Field label="Alimentation">
-            <Select
+            <RadioGroup
               value={fiche.alimentation}
               onChange={(v) => u("alimentation", v)}
               options={[
                 { value: "equilibree", label: "Équilibrée" },
                 { value: "hypercalorique", label: "Hypercalorique" },
                 { value: "hypocalorique", label: "Pauvre / insuffisante" },
-                { value: "traditionnelle", label: "Alimentation traditionnelle" },
+                { value: "traditionnelle", label: "Traditionnelle" },
               ]}
-              placeholder="Type d'alimentation"
+              columns={2}
             />
           </Field>
         </div>
@@ -852,13 +995,13 @@ export function FichePatientForm() {
         alert={hasConstantAlert}
         completed={!!(fiche.constantes && Object.values(fiche.constantes).some((v) => v !== undefined))}
       >
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <Field label="Température (°C)">
             <Input
               type="number"
               value={fiche.constantes?.temperature}
               onChange={(v) =>
-                updateFiche({ constantes: { ...fiche.constantes, temperature: Number(v) } })
+                updateFiche({ constantes: { ...fiche.constantes, temperature: optionalNumber(v) } })
               }
               placeholder="37.0"
               className={cn((fiche.constantes?.temperature ?? 0) > 38.5 && "border-red-400 bg-red-50")}
@@ -869,7 +1012,7 @@ export function FichePatientForm() {
               type="number"
               value={fiche.constantes?.taSystolique}
               onChange={(v) =>
-                updateFiche({ constantes: { ...fiche.constantes, taSystolique: Number(v) } })
+                updateFiche({ constantes: { ...fiche.constantes, taSystolique: optionalNumber(v) } })
               }
               placeholder="120"
               className={cn(
@@ -883,7 +1026,7 @@ export function FichePatientForm() {
               type="number"
               value={fiche.constantes?.taDiastolique}
               onChange={(v) =>
-                updateFiche({ constantes: { ...fiche.constantes, taDiastolique: Number(v) } })
+                updateFiche({ constantes: { ...fiche.constantes, taDiastolique: optionalNumber(v) } })
               }
               placeholder="80"
             />
@@ -893,7 +1036,7 @@ export function FichePatientForm() {
               type="number"
               value={fiche.constantes?.fc}
               onChange={(v) =>
-                updateFiche({ constantes: { ...fiche.constantes, fc: Number(v) } })
+                updateFiche({ constantes: { ...fiche.constantes, fc: optionalNumber(v) } })
               }
               placeholder="70"
               className={cn(
@@ -906,7 +1049,7 @@ export function FichePatientForm() {
               type="number"
               value={fiche.constantes?.fr}
               onChange={(v) =>
-                updateFiche({ constantes: { ...fiche.constantes, fr: Number(v) } })
+                updateFiche({ constantes: { ...fiche.constantes, fr: optionalNumber(v) } })
               }
               placeholder="16"
               className={cn((fiche.constantes?.fr ?? 0) > 25 && "border-red-400 bg-red-50")}
@@ -917,7 +1060,7 @@ export function FichePatientForm() {
               type="number"
               value={fiche.constantes?.spo2}
               onChange={(v) =>
-                updateFiche({ constantes: { ...fiche.constantes, spo2: Number(v) } })
+                updateFiche({ constantes: { ...fiche.constantes, spo2: optionalNumber(v) } })
               }
               placeholder="98"
               className={cn((fiche.constantes?.spo2 ?? 100) < 94 && "border-red-400 bg-red-50")}
@@ -927,7 +1070,7 @@ export function FichePatientForm() {
             <Input
               type="number"
               value={fiche.constantes?.poids}
-              onChange={(v) => updateFiche({ constantes: { ...fiche.constantes, poids: Number(v) } })}
+              onChange={(v) => updateFiche({ constantes: { ...fiche.constantes, poids: optionalNumber(v) } })}
               placeholder="70"
             />
           </Field>
@@ -935,7 +1078,7 @@ export function FichePatientForm() {
             <Input
               type="number"
               value={fiche.constantes?.taille}
-              onChange={(v) => updateFiche({ constantes: { ...fiche.constantes, taille: Number(v) } })}
+              onChange={(v) => updateFiche({ constantes: { ...fiche.constantes, taille: optionalNumber(v) } })}
               placeholder="170"
             />
           </Field>
