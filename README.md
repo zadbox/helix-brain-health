@@ -2,7 +2,7 @@
 
 HELIX est une application d’assistance à la consultation médicale. Elle structure la fiche patient, calcule des alertes déterministes sur les constantes, propose une orientation diagnostique assistée, interroge PubMed et génère un compte rendu médical professionnel soumis à validation humaine.
 
-> Statut : prototype renforcé, adapté aux démonstrations et aux travaux de validation. Il n’est pas encore autorisable pour un usage médical de production. Les blockers sont détaillés dans la section [Production readiness](#production-readiness).
+> Statut : prototype de recherche/démonstration, pas un dispositif médical validé ni une application prête pour un usage clinique de production. Les étiquettes de probabilité, diagnostics et codes CIM-10 ne sont pas calibrés ni évalués cliniquement. Voir [Production readiness](#production-readiness) et [l’état des preuves](docs/RESEARCH_EVIDENCE.md).
 
 ## Fonctions disponibles
 
@@ -10,7 +10,7 @@ HELIX est une application d’assistance à la consultation médicale. Elle stru
 - Alertes locales sur certaines constantes avec seuils explicites.
 - Orientation diagnostique structurée : hypothèses, probabilité, arguments, diagnostics différentiels et code CIM-10.
 - Chat médical capable d’extraire des informations vers la fiche.
-- Recherche bibliographique PubMed sans transmission de l’identité du patient.
+- Recherche bibliographique PubMed à partir des termes produits par la première hypothèse diagnostique. Des identifiants peuvent subsister dans les champs cliniques libres transmis au modèle; le filtrage actuel ne constitue pas une dé-identification complète.
 - Compte rendu A4 structuré, copiable, téléchargeable et imprimable.
 - Repli déterministe du compte rendu si le moteur d’inférence est indisponible.
 - Passerelle générique pour connecter le futur modèle HELIX finetuné.
@@ -25,12 +25,12 @@ HELIX est une application d’assistance à la consultation médicale. Elle stru
 | Design | Tailwind CSS 3.4, Framer Motion, Lucide | Mise en page et interactions |
 | État client | Zustand 5 | Consultation en mémoire |
 | Validation | Zod 4 | Contrats d’entrée et sorties structurées |
-| Inférence | Endpoint privé compatible `/v1/chat/completions` | Modèle médical actuel ou futur modèle finetuné |
+| Inférence | Endpoint configurable compatible `/v1/chat/completions` | Modèle déclaré dans la requête; identité des poids non attestée par l’application |
 | Références | NCBI PubMed E-utilities | Recherche bibliographique |
-| Tests | Vitest 3.2 | Tests unitaires du domaine et de la passerelle |
+| Tests | Vitest | Suite présente dans le dépôt; aucun décompte ni résultat d’exécution n’est affirmé ici |
 | Packaging | Docker multi-stage | Exécution autonome avec utilisateur non privilégié |
 
-Les versions directes sont verrouillées dans `package.json` et `package-lock.json`. `npm audit` ne remonte actuellement aucune vulnérabilité connue.
+Les versions directes sont déclarées dans `package.json` et `package-lock.json`. Ce README ne rapporte pas d’état actuel de l’audit de dépendances ni de la suite de tests; vérifier ces résultats dans l’environnement de livraison.
 
 ## Architecture actuelle
 
@@ -48,7 +48,7 @@ flowchart LR
     REPORT --> VALID
     VALID --> GATEWAY["Passerelle d’inférence"]
     GATEWAY --> MODEL["Serveur du modèle médical privé"]
-    DIAG --> PUBMED["Client PubMed"]
+    DIAG --> PUBMED["PubMed: requête dérivée de la première hypothèse"]
     REPORT --> PUBMED
     REPORT --> DOMAIN["Construction déterministe du compte rendu"]
     DOMAIN --> EXPORT["Aperçu, copie, HTML et impression PDF"]
@@ -100,16 +100,18 @@ types/                    contrats TypeScript du domaine
 1. La fiche est modifiée dans le navigateur.
 2. Après 1,5 seconde sans nouvelle saisie, l’analyse précédente est annulée.
 3. Le navigateur appelle `POST /api/diagnose`.
-4. Le serveur retire le nom, le prénom, la profession et la date avant l’inférence.
+4. Le serveur retire quelques champs d’identité structurés avant l’inférence; le texte libre n’est pas nettoyé d’identifiants potentiels.
 5. Le moteur retourne un JSON d’hypothèses et de suggestions.
-6. Zod rejette tout format inattendu.
-7. Les termes diagnostiques servent à rechercher trois références PubMed maximum.
+6. Zod contrôle la forme et certaines bornes de la réponse; cela ne valide pas la vérité médicale.
+7. La requête PubMed est dérivée de la première hypothèse uniquement; jusqu’à trois références sont renvoyées.
 8. Le résultat validé remplace l’état précédent dans Zustand.
+
+Ce flux n’a pas été évalué avec un modèle entraîné sur la tâche applicative complète (fiche clinique → JSON structuré avec hypothèses, arguments et CIM-10). Le nom `MEDICAL_MODEL_NAME` configure le champ `model` envoyé à la passerelle; il ne prouve ni quels poids répondent, ni qu’ils correspondent à un modèle HELIX entraîné.
 
 ### Chat et extraction de fiche
 
 1. Le médecin envoie une instruction ou une dictée.
-2. Les dix derniers messages maximum et la fiche clinique sans identité nominative sont envoyés au moteur.
+2. Les dix derniers messages maximum et la fiche clinique après retrait de certains champs structurés sont envoyés au moteur; le texte libre n’est pas expurgé des identifiants potentiels.
 3. La réponse doit contenir `reponse`, `type` et éventuellement `ficheUpdate`.
 4. `ficheUpdate` est validé avant fusion profonde avec la fiche existante.
 5. Une mise à jour clinique déclenche une nouvelle analyse diagnostique.
@@ -122,9 +124,9 @@ types/                    contrats TypeScript du domaine
 4. Les examens et prises en charge restent ceux déjà présents dans la consultation.
 5. Le médecin vérifie puis copie, télécharge ou imprime le document.
 
-## Intégration du modèle HELIX finetuné
+## Passerelle de modèle configurable
 
-La passerelle attend un endpoint HTTP privé compatible avec le contrat suivant.
+La passerelle attend un endpoint HTTP configurable compatible avec le contrat suivant. Le code ne charge pas de poids localement et ne vérifie pas l’identité du modèle derrière cet endpoint. `MEDICAL_MODEL_NAME=helix-medical` est une valeur d’identifiant de requête, pas une preuve de déploiement ou d’évaluation d’un checkpoint HELIX.
 
 ### Requête
 
@@ -165,7 +167,7 @@ cp .env.example .env.local
 | Variable | Obligatoire | Description |
 |---|---:|---|
 | `MEDICAL_MODEL_ENDPOINT` | Oui en exploitation | URL complète du endpoint de chat |
-| `MEDICAL_MODEL_NAME` | Oui | Identifiant/version du modèle chargé |
+| `MEDICAL_MODEL_NAME` | Non | Valeur envoyée dans le champ `model` (défaut `helix-medical`); ne vérifie pas l’identité ou la version réelle des poids |
 | `MEDICAL_MODEL_API_KEY` | Selon le réseau | Secret de la passerelle interne |
 | `MEDICAL_MODEL_TIMEOUT_MS` | Non | Timeout, 45 secondes par défaut |
 | `MEDICAL_MODEL_MAX_RETRIES` | Non | Nombre de nouvelles tentatives |
@@ -174,11 +176,11 @@ cp .env.example .env.local
 
 Les variables préfixées `NEXT_PUBLIC_` sont visibles dans le navigateur et ne doivent contenir aucun secret.
 
-### Exigences avant branchement du modèle finetuné
+### Exigences avant toute revendication de modèle finetuné
 
 - Dataset dé-identifié, traçable, documenté et approuvé par la gouvernance médicale.
 - Séparation stricte entre jeux d’entraînement, validation et test.
-- Jeu d’évaluation clinique figé par spécialité et niveau d’urgence.
+- Jeu d’évaluation figé correspondant à la tâche réellement exécutée par l’application : JSON diagnostique structuré, arguments, différentiels, suggestions et codes CIM-10, par spécialité et niveau d’urgence.
 - Mesure de la sensibilité des red flags, du taux d’hallucination, des omissions, de l’abstention et de la conformité JSON.
 - Évaluation spécifique des allergies, contre-indications, grossesse, pédiatrie et insuffisances rénale/hépatique.
 - Version immuable du modèle, du tokenizer, des prompts et des règles cliniques pour chaque résultat.
@@ -241,9 +243,9 @@ La taille d’une requête médicale est limitée à 128 Kio. Les schémas compl
 
 - La consultation réside uniquement dans la mémoire du navigateur.
 - Il n’existe pas encore de base patient, de compte utilisateur ou de sauvegarde.
-- Le nom et le prénom ne sont pas transmis au moteur pour le chat et le diagnostic.
+- Certains champs structurés (`nom`, `prenom`, `profession`, `dateConsultation`) sont retirés du résumé envoyé au modèle pour chat et diagnostic. Cela ne supprime pas les identifiants éventuellement saisis dans `motifLibre`, `hmaLibre`, notes, traitements, examen ou autres champs libres; ne pas qualifier ce traitement de dé-identification garantie.
 - L’identité patient est utilisée localement pour le document final mais n’entre pas dans l’enrichissement narratif du rapport.
-- PubMed reçoit uniquement des termes diagnostiques et filtres bibliographiques.
+- PubMed reçoit des termes diagnostiques générés et des filtres bibliographiques; selon l’âge, le code ajoute un filtre de population. Il ne transmet pas l’objet fiche directement, mais les termes peuvent dériver de texte clinique.
 - Les routes HTTP ne journalisent pas les prompts ni le contenu du dossier.
 
 Exigences de production :
@@ -264,9 +266,9 @@ Exigences de production :
 | Domaine | État | Niveau | Action requise |
 |---|---|---:|---|
 | Build reproductible | Disponible | OK | Maintenir `npm ci` et l’image versionnée |
-| Vulnérabilités dépendances | Audit à zéro | OK | Audit continu à chaque livraison |
+| Vulnérabilités dépendances | Non vérifié dans cette révision documentaire | À vérifier | Exécuter et archiver l’audit de dépendances pour chaque livraison |
 | Validation des entrées | Zod + limite 128 Kio | OK | Ajouter tests de fuzzing |
-| Passerelle modèle | Découplée et testée | OK | Ajouter version et métriques d’inférence |
+| Passerelle modèle | Endpoint configurable; identité des poids non attestée ici | À vérifier | Attester endpoint, poids, tokenizer, configuration et version immuable |
 | Rapport médical | Structuré + repli déterministe | Bon | Ajouter signature et version de document |
 | Authentification | Absente | **Blocker** | OIDC interne, MFA et sessions sécurisées |
 | Autorisation | Absente | **Blocker** | RBAC médecin, infirmier, admin, auditeur |
@@ -278,12 +280,12 @@ Exigences de production :
 | Gouvernance des règles | Fichiers expérimentaux | Élevé | Sources, propriétaire, date et version clinique |
 | Observabilité | Logs techniques minimaux | Élevé | Métriques sans données patient, alertes et traces |
 | Résilience | Timeout et une nouvelle tentative | Moyen | Circuit breaker, quotas, test de charge |
-| Tests unitaires | 9 tests | Moyen | Étendre domaine, routes, exports et prompts |
-| Tests E2E | Absents | Élevé | Parcours consultation, rapport et erreurs |
+| Tests unitaires | Présence de tests dans le dépôt; résultats non vérifiés ici | À vérifier | Exécuter puis étendre tests du domaine, routes, exports et prompts |
+| Tests E2E | Non vérifiés dans cette révision documentaire | À vérifier | Contrôler les parcours consultation, rapport et erreurs |
 | Accessibilité | Partielle | Moyen | Audit clavier, lecteur d’écran et contraste |
 | Conformité juridique | Non documentée | **Blocker** | Analyse juridique et protection des données |
 
-### Architecture cible
+### Architecture cible (proposition, non implémentée)
 
 ```mermaid
 flowchart TB
@@ -319,7 +321,20 @@ flowchart TB
 - Les fichiers `skills/*/SKILL.md` sont un catalogue expérimental. Leur contenu thérapeutique et tarifaire ne doit pas être considéré comme une base clinique validée.
 - La progression de consultation est indicative et ne garantit pas la complétude médicale.
 - La recherche PubMed est tolérante aux erreurs mais n’est pas un moteur de recommandations thérapeutiques.
+- Les labels `haute`, `moyenne`, `faible` sont des catégories générées et validées au format, pas des probabilités calibrées. `score` est facultatif et aucune calibration/validation n’est établie ici.
+- La route de diagnostic impose une hypothèse non vide dès qu’un motif/HMA est fourni, puis relance le modèle si la sortie initiale n’en contient aucune. L’abstention sûre n’est donc pas disponible dans ce flux actuel.
+- Une liste PubMed vide peut signifier absence d’identifiants trouvés ou erreur réseau/API/parsing: `fetchPubMedReferences` convertit les erreurs en `[]`. L’interface ne peut pas distinguer « aucun résultat » de « recherche indisponible » avec ce contrat.
+- Les références sont attachées au résultat global après une recherche sur la première hypothèse; elles ne sont pas évaluées pour leur pertinence clinique et aucune citation n’est reliée à chaque argument diagnostique.
+- Aucun résultat rapporté ici n’établit la performance d’un modèle entraîné sur les sorties JSON structurées de cette application ni la justesse des codes CIM-10.
 - L’export actuel est un HTML imprimable. Un PDF signé et horodaté nécessite un service documentaire dédié.
+
+## Dépôts et lignées de modèles
+
+- **Cette application HELIX** : [dépôt personnel `zadbox/helix-brain-health`](https://github.com/zadbox/helix-brain-health), branche `main`. Le code orchestre un endpoint configurable; il n’identifie pas les poids qui l’exécutent.
+- **Pipeline d’entraînement HELIX** : [fork personnel `zadbox/BRAIN-train`](https://github.com/zadbox/BRAIN-train), branche `Training_v2`; c’est une lignée distincte d’artefacts et d’évaluations, pas une preuve que ce modèle est branché ici.
+- **BrainMed** : [dépôt personnel `zadbox/BrainMed-8B`](https://github.com/zadbox/BrainMed-8B), projet/modèle distinct de HELIX; ne pas traiter ses résultats comme une évaluation de cette application ou de HELIX.
+
+Voir [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md) pour les lacunes de preuve et les prochaines évaluations proposées.
 
 ## Règles de contribution
 
